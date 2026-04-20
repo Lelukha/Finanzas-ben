@@ -474,34 +474,76 @@ function calcProjection(){
   }
   return{labels,dataA,dataB};
 }
+// Config: vencimiento dia del mes y dias de gracia por gasto
+const VENCE={r1:1,r2:8,sor:7,pre:7,esc:5,ser:20,nat:1};
+const GRACIA={r1:5,r2:5};
+// No fixed date: sup, nut, gym, lim (weekly martha)
+
+function calcMontoQuincena(k,dateStr,totalMensual){
+  // Returns how much of this gasto should be covered in this quincena
+  const dsDate=new Date(dateStr+'T12:00:00');
+  const idx=PAGOS_DATES.indexOf(dateStr);
+  const nextDs=idx>=0&&idx<PAGOS_DATES.length-1?PAGOS_DATES[idx+1]:null;
+  const nextDate=nextDs?new Date(nextDs+'T12:00:00'):new Date(dsDate.getTime()+15*86400000);
+  const vDia=VENCE[k];
+  // No fixed date — always half
+  if(!vDia)return totalMensual/2;
+  // Find vencimiento date in current or next month
+  const [y,m]=dateStr.split('-').map(Number);
+  // Try current month first
+  let vDate=new Date(y,m-1,vDia);
+  // If vDate is before this quincena, try next month
+  if(vDate<dsDate)vDate=new Date(y,m,vDia);
+  const gracia=(GRACIA[k]||0)*86400000;
+  const deadline=new Date(vDate.getTime()+gracia);
+  // If deadline is before next quincena → must pay full this quincena
+  if(deadline<nextDate)return totalMensual;
+  // Otherwise split half
+  return totalMensual/2;
+}
+
 function desglosesPago(dateStr){
-  const c=cfg();const nP=pagosDelMes(dateStr.slice(0,7)).length;const mr=montoReal(dateStr);
+  const c=cfg();const mr=montoReal(dateStr);
   const mesDsKey=dateStr.slice(0,7);
-  const aportSor=gastoActivo('sor',mesDsKey)?c.sor/nP:0;
-  const aportPre=gastoActivo('pre',mesDsKey)?c.preF/nP:0;
-  // Sum up all individual fijos that are active
-  const FIJOS_KEYS=['r1','r2','sup','nut','esc','ser','nat','lim','gym'];
-  let otrosFijos=0;
-  for(const k of FIJOS_KEYS){
-    if(!gastoActivo(k,mesDsKey))continue;
-    otrosFijos+=(+document.getElementById('cfg-'+k)?.value||0)/nP;
-  }
-  // Calculate libre: income minus all committed expenses (using edited amounts if available)
   const ap=aportaciones[dateStr]||{};
-  let totalComprometido=0;
+  const FIJOS_KEYS=['r1','r2','sup','nut','esc','ser','nat','lim','gym'];
+  // Calculate smart amounts per gasto
+  const montos={};
   // Sorento
-  if(aportSor>0){const ed=ap['monto_sorento'];totalComprometido+=(ed!==undefined?+ed:aportSor);}
-  // Prestamo
-  if(aportPre>0){const ed=ap['monto_prestamo'];totalComprometido+=(ed!==undefined?+ed:aportPre);}
+  montos.sor=gastoActivo('sor',mesDsKey)?calcMontoQuincena('sor',dateStr,c.sor):0;
+  // Préstamo interés
+  montos.pre=gastoActivo('pre',mesDsKey)?12500:0;
+  // Préstamo capital opcional
+  montos.preExt=gastoActivo('pre',mesDsKey)?(+document.getElementById('cfg-ext')?.value||5000):0;
   // Otros fijos
   for(const k of FIJOS_KEYS){
-    if(!gastoActivo(k,mesDsKey))continue;
-    const base=(+document.getElementById('cfg-'+k)?.value||0)/nP;
+    if(!gastoActivo(k,mesDsKey)){montos[k]=0;continue;}
+    const total=+document.getElementById('cfg-'+k)?.value||0;
+    if(k==='lim'){
+      // Martha: count weeks in this quincena period
+      const idx=PAGOS_DATES.indexOf(dateStr);
+      const nextDs=idx>=0&&idx<PAGOS_DATES.length-1?PAGOS_DATES[idx+1]:null;
+      const dIni=new Date(dateStr+'T12:00:00');
+      const dFin=nextDs?new Date(nextDs+'T12:00:00'):new Date(dIni.getTime()+14*86400000);
+      const semanas=Math.round((dFin-dIni)/(7*86400000));
+      montos[k]=850*semanas;
+    } else {
+      montos[k]=calcMontoQuincena(k,dateStr,total);
+    }
+  }
+  // Total comprometido usando montos editados si existen
+  let totalComprometido=0;
+  if(montos.sor>0){const ed=ap['monto_sorento'];totalComprometido+=(ed!==undefined?+ed:montos.sor);}
+  if(montos.pre>0){const ed=ap['monto_prestamo'];totalComprometido+=(ed!==undefined?+ed:montos.pre);}
+  if(montos.preExt>0){const ed=ap['monto_prestamo_capital'];totalComprometido+=(ed!==undefined?+ed:montos.preExt);}
+  for(const k of FIJOS_KEYS){
+    if(!montos[k])continue;
     const ed=ap['monto_gasto_'+k];
-    totalComprometido+=(ed!==undefined?+ed:base);
+    totalComprometido+=(ed!==undefined?+ed:montos[k]);
   }
   const libre=mr.total-totalComprometido;
-  return{mr,aportSor,aportPre,otrosFijos,libre,nP,totalComprometido};
+  const nP=pagosDelMes(mesDsKey).length;
+  return{mr,montos,libre,nP,totalComprometido};
 }
 function pagosEnPeriodo(dateStr){
   const idx=PAGOS_DATES.indexOf(dateStr);const nextDs=idx>=0&&idx<PAGOS_DATES.length-1?PAGOS_DATES[idx+1]:null;
@@ -645,6 +687,7 @@ function renderPagos(){
   for(const ds of lista){
     const isPast=ds<h;const cobrado=cobrados[ds]||false;const ap=aportaciones[ds]||{};const dg=desglosesPago(ds);const mr=dg.mr;const tcActual=mr.tc;const tcDiff=tcActual-c.tcBase;
     const stSor=ap.sorento||'none';const stPre=ap.prestamo||'none';
+    const stPreCap=ap.prestamo_capital||'none';
     const isBono=mr.bonoBase>0;const bonos=bonosExtra[ds]||[];const totalBonos=bonos.reduce((a,b)=>a+(+b.monto||0),0);
     const bonoTag=isBono?'<span class="bb">BONO</span>':'';const tresTag=dg.nP===3?'<span class="tb">3er quincena</span>':'';
     const tcDelta=tcDiff>0.05?`<span class="delta-pos">+${tcDiff.toFixed(2)}</span>`:tcDiff<-0.05?`<span class="delta-neg">${tcDiff.toFixed(2)}</span>`:'';
@@ -658,8 +701,8 @@ function renderPagos(){
     const preActivo=gastoActivo('pre',mesDsKey);
     for(const k of FIJOS_KEYS){
       if(!gastoActivo(k,mesDsKey))continue;
-      const val=+document.getElementById('cfg-'+k).value||0;if(!val)continue;
-      const label=nom(k);const aportK=val/dg.nP;const stK='gasto_'+k;const stVal=ap[stK]||'none';
+      const aportK=dg.montos[k]||0;if(!aportK)continue;
+      const label=nom(k);const stK='gasto_'+k;const stVal=ap[stK]||'none';
       const montoEd=ap['monto_'+stK]!==undefined?ap['monto_'+stK]:aportK;
       const isEd=stVal!=='none';
       filasGastos+=`<div class="ar ${rowCls(stVal)}" onclick="ciclar('${ds}','${stK}')"><div class="ai ${icoCls(stVal)}">${ico(stVal)}</div><div class="an"><div class="nm">${label}</div><div class="ht" style="font-size:9px">${hint(stVal)}</div></div>${isEd?`<input class="ext-inp" type="number" value="${montoEd}" onclick="event.stopPropagation()" onchange="setMontoReal('${ds}','${stK}',this.value)" style="width:80px;margin-right:4px;">`:`<div class="aa" style="color:${col(stVal)}">${fmt(aportK)}</div>`}</div>`;
@@ -700,7 +743,7 @@ function renderPagos(){
       }
       filasArrastres+=`<div class="pr" style="color:var(--orange);background:rgba(243,156,18,.08)"><span>⚠️ Total arrastre</span><span class="amt">${fmt(totalArrastre)}</span></div>`;
     }
-    html+=`<div class="pc"><div class="ph ${cobrado?'cobrado':''}"><div><div class="pf2">${fmtDate(ds)} ${bonoTag}${tresTag}</div><div style="font-size:10px;opacity:.6;">${cobrado?'✓ Cobrado':isPast?'Sin marcar':'Próximo'}</div></div><div style="text-align:right"><div class="pm ${cobrado?'cobrado':''}">${fmt(mr.total)}</div><button class="cbtn ${cobrado?'undo':''}" onclick="toggleCobro('${ds}')">${cobrado?'Desmarcar':'Cobrado ✓'}</button></div></div><div class="pb2"><div class="tc-row"><span class="tc-lbl">TC real este día ${tcDelta}</span><input class="tc-inp" type="number" step="0.1" value="${tcActual.toFixed(2)}" onchange="setTC('${ds}',this.value)" placeholder="${c.tcBase}"></div>${bonos.map((b,i)=>`<div class="bonus-row"><input class="bonus-d" value="${b.desc}" placeholder="Bono / performance / ventas..." oninput="updBono('${ds}',${i},'desc',this.value)"><input class="bonus-m" type="number" value="${b.monto}" oninput="updBono('${ds}',${i},'monto',this.value)" placeholder="0"><button class="bonus-del" onclick="delBono('${ds}',${i})">✕</button></div>`).join('')}<div class="add-bonus" onclick="addBono('${ds}')">+ Agregar bono / ingreso extra</div>${pagosQ.length?`<div class="pagos-dia">${pagosQ.map(p=>`<span class="pago-chip ${p.urgente?'urgente':''}">${p.nom}</span>`).join('')}</div>`:''}${sorActivo?`<div class="ar ${rowCls(stSor)}" onclick="ciclar('${ds}','sorento')"><div class="ai ${icoCls(stSor)}">${ico(stSor)}</div><div class="an"><div class="nm">${nom('sor')}</div><div class="ht">${hint(stSor)}</div></div><div class="aa" style="color:${col(stSor)}">${fmt(dg.aportSor)}</div></div>`:''} ${preActivo?`<div class="ar ${rowCls(stPre)}" onclick="ciclar('${ds}','prestamo')"><div class="ai ${icoCls(stPre)}">${ico(stPre)}</div><div class="an"><div class="nm">${nom('pre')}</div><div class="ht">${hint(stPre)}</div></div><div class="aa" style="color:${col(stPre)}">${fmt(dg.aportPre)}</div></div>`:''} ${filasGastos}${filasArrastres}<div class="pr libre" style="background:${totalArrastre>0?'rgba(231,76,60,.08)':''}"><span>✅ Libre real${totalArrastre>0?' (ajustado)':''}</span><span class="amt" style="color:${totalArrastre>0&&(dg.libre-totalArrastre)<0?'var(--red)':''}}">${fmt(dg.libre-totalArrastre)}</span></div>${totalArrastre>0?`<div class="pr" style="color:var(--muted);font-size:11px"><span>Sin arrastre</span><span>${fmt(dg.libre)}</span></div>`:''}${mr.bonoBase>0?`<div class="pr" style="color:var(--orange)"><span>🎯 Bono salarial</span><span class="amt">${fmt(mr.bonoBase)}</span></div>`:''} ${totalBonos>0?`<div class="pr" style="color:var(--green)"><span>💸 Bonos / extras</span><span class="amt">${fmt(totalBonos)}</span></div>`:''}${proyHtml}<div class="nota-row"><input class="nota-inp" placeholder="📝 Nota de esta quincena..." value="${nota}" onchange="setNota('${ds}',this.value)"></div></div></div>`;
+    html+=`<div class="pc"><div class="ph ${cobrado?'cobrado':''}"><div><div class="pf2">${fmtDate(ds)} ${bonoTag}${tresTag}</div><div style="font-size:10px;opacity:.6;">${cobrado?'✓ Cobrado':isPast?'Sin marcar':'Próximo'}</div></div><div style="text-align:right"><div class="pm ${cobrado?'cobrado':''}">${fmt(mr.total)}</div><button class="cbtn ${cobrado?'undo':''}" onclick="toggleCobro('${ds}')">${cobrado?'Desmarcar':'Cobrado ✓'}</button></div></div><div class="pb2"><div class="tc-row"><span class="tc-lbl">TC real este día ${tcDelta}</span><input class="tc-inp" type="number" step="0.1" value="${tcActual.toFixed(2)}" onchange="setTC('${ds}',this.value)" placeholder="${c.tcBase}"></div>${bonos.map((b,i)=>`<div class="bonus-row"><input class="bonus-d" value="${b.desc}" placeholder="Bono / performance / ventas..." oninput="updBono('${ds}',${i},'desc',this.value)"><input class="bonus-m" type="number" value="${b.monto}" oninput="updBono('${ds}',${i},'monto',this.value)" placeholder="0"><button class="bonus-del" onclick="delBono('${ds}',${i})">✕</button></div>`).join('')}<div class="add-bonus" onclick="addBono('${ds}')">+ Agregar bono / ingreso extra</div>${pagosQ.length?`<div class="pagos-dia">${pagosQ.map(p=>`<span class="pago-chip ${p.urgente?'urgente':''}">${p.nom}</span>`).join('')}</div>`:''}${sorActivo?`<div class="ar ${rowCls(stSor)}" onclick="ciclar('${ds}','sorento')"><div class="ai ${icoCls(stSor)}">${ico(stSor)}</div><div class="an"><div class="nm">${nom('sor')}</div><div class="ht">${hint(stSor)}</div></div><div class="aa" style="color:${col(stSor)}">${fmt(dg.montos.sor)}</div></div>`:''} ${preActivo?`<div class="ar ${rowCls(stPre)}" onclick="ciclar('${ds}','prestamo')"><div class="ai ${icoCls(stPre)}">${ico(stPre)}</div><div class="an"><div class="nm">Préstamo — interés</div><div class="ht" style="color:var(--red);font-size:9px">⚠️ Obligatorio — $12,500/mes</div></div><div class="aa" style="color:${col(stPre)}">${fmt(dg.montos.pre)}</div></div><div class="ar ${rowCls(stPreCap)}" onclick="ciclar('${ds}','prestamo_capital')"><div class="ai ${icoCls(stPreCap)}">${ico(stPreCap)}</div><div class="an"><div class="nm">Préstamo — abono capital</div><div class="ht" style="color:var(--teal);font-size:9px">Opcional — aparta para adelantar</div></div><div class="aa" style="color:${col(stPreCap)}">${fmt(dg.montos.preExt)}</div></div>`:''} ${filasGastos}${filasArrastres}<div class="pr libre" style="background:${totalArrastre>0?'rgba(231,76,60,.08)':''}"><span>✅ Libre real${totalArrastre>0?' (ajustado)':''}</span><span class="amt" style="color:${totalArrastre>0&&(dg.libre-totalArrastre)<0?'var(--red)':''}}">${fmt(dg.libre-totalArrastre)}</span></div>${totalArrastre>0?`<div class="pr" style="color:var(--muted);font-size:11px"><span>Sin arrastre</span><span>${fmt(dg.libre)}</span></div>`:''}${mr.bonoBase>0?`<div class="pr" style="color:var(--orange)"><span>🎯 Bono salarial</span><span class="amt">${fmt(mr.bonoBase)}</span></div>`:''} ${totalBonos>0?`<div class="pr" style="color:var(--green)"><span>💸 Bonos / extras</span><span class="amt">${fmt(totalBonos)}</span></div>`:''}${proyHtml}<div class="nota-row"><input class="nota-inp" placeholder="📝 Nota de esta quincena..." value="${nota}" onchange="setNota('${ds}',this.value)"></div></div></div>`;
   }
   document.getElementById('pagos-lista').innerHTML=html;
 }
