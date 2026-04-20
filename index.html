@@ -347,6 +347,7 @@ const PAGOS_DATES=["2026-04-07","2026-04-21","2026-05-05","2026-05-19","2026-06-
 const MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DIA=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const LS='finanzas_ben_v4';
+
 const PAGOS_FIJOS_DIAS=[
   {nom:'Sorento (Kia Finance)',dia:7,key:'_sor'},
   {nom:'Préstamo familiar',dia:7,key:'_pre'},
@@ -364,6 +365,44 @@ const VENCIMIENTO={r1:1,r2:8,sup:15,nut:1,esc:5,ser:20,nat:1,lim:999,gym:1,soren
 const ACUM_IDX=3;
 let curMesKey='',cobrados={},aportaciones={},tcReales={},bonosExtra={},gastosV={},loanPaid={},loanExtras={},pagosMarcados={},notasQ={},curAnioKey='',loanChart=null;
 let deferredPrompt=null;
+
+const SUPABASE_URL='https://thufvlyfayynsppnkmvi.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRodWZ2bHlmYXl5bnNwcG5rbXZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3MDk3ODUsImV4cCI6MjA5MjI4NTc4NX0.xklZE29Tjcqm92NqOUT0towPsWf1O-pWyL8pHl0-zl8';
+
+async function syncToSupabase(data){
+  try{
+    await fetch(`${SUPABASE_URL}/rest/v1/finanzas_ben?id=eq.ben`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body:JSON.stringify({data,updated_at:new Date().toISOString()})
+    });
+  }catch(e){console.log('Supabase sync error',e);}
+}
+
+async function loadFromSupabase(){
+  try{
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/finanzas_ben?id=eq.ben&select=data`,{
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    const rows=await res.json();
+    if(rows&&rows[0]&&rows[0].data&&Object.keys(rows[0].data).length>0){
+      const d=rows[0].data;
+      if(d.curMesKey)curMesKey=d.curMesKey;if(d.curAnioKey)curAnioKey=d.curAnioKey;
+      if(d.cobrados)cobrados=d.cobrados;if(d.aportaciones)aportaciones=d.aportaciones;
+      if(d.tcReales)tcReales=d.tcReales;if(d.bonosExtra)bonosExtra=d.bonosExtra;
+      if(d.gastosV)gastosV=d.gastosV;if(d.loanPaid)loanPaid=d.loanPaid;
+      if(d.loanExtras)loanExtras=d.loanExtras;if(d.pagosMarcados)pagosMarcados=d.pagosMarcados;
+      if(d.notasQ)notasQ=d.notasQ;
+      if(d.cfg)Object.entries(d.cfg).forEach(([k,v])=>{const e=document.getElementById('cfg-'+k);if(e)e.value=v;});
+      if(d.nom)Object.entries(d.nom).forEach(([k,v])=>{const e=document.getElementById('nom-'+k);if(e)e.value=v;});
+      if(d.desde)Object.entries(d.desde).forEach(([k,v])=>{const e=document.getElementById('desde-'+k);if(e)e.value=v;});
+      // Also save to localStorage as backup
+      try{localStorage.setItem(LS,JSON.stringify(d));}catch(e){}
+      recalc();
+      console.log('✅ Datos cargados desde Supabase');
+    }
+  }catch(e){console.log('Supabase load error',e);}
+}
 
 // PWA install
 window.addEventListener('beforeinstallprompt',e=>{
@@ -888,49 +927,10 @@ function showTab(id,el){
 }
 function recalc(){renderPagos();renderResumen();renderGastos();renderPrestamo();renderAnual();checkBonoAlert();}
 
-const SUPABASE_URL='https://thufvlyfayynsppnkmvi.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRodWZ2bHlmYXl5bnNwcG5rbXZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3MDk3ODUsImV4cCI6MjA5MjI4NTc4NX0.xklZE29Tjcqm92NqOUT0towPsWf1O-pWyL8pHl0-zl8';
-
-async function syncToSupabase(data){
-  try{
-    await fetch(`${SUPABASE_URL}/rest/v1/finanzas_ben?id=eq.ben`,{
-      method:'PATCH',
-      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
-      body:JSON.stringify({data,updated_at:new Date().toISOString()})
-    });
-  }catch(e){console.log('Supabase sync error',e);}
-}
-
-async function loadFromSupabase(){
-  try{
-    const res=await fetch(`${SUPABASE_URL}/rest/v1/finanzas_ben?id=eq.ben&select=data`,{
-      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
-    });
-    const rows=await res.json();
-    if(rows&&rows[0]&&rows[0].data&&Object.keys(rows[0].data).length>0){
-      const d=rows[0].data;
-      if(d.curMesKey)curMesKey=d.curMesKey;if(d.curAnioKey)curAnioKey=d.curAnioKey;
-      if(d.cobrados)cobrados=d.cobrados;if(d.aportaciones)aportaciones=d.aportaciones;
-      if(d.tcReales)tcReales=d.tcReales;if(d.bonosExtra)bonosExtra=d.bonosExtra;
-      if(d.gastosV)gastosV=d.gastosV;if(d.loanPaid)loanPaid=d.loanPaid;
-      if(d.loanExtras)loanExtras=d.loanExtras;if(d.pagosMarcados)pagosMarcados=d.pagosMarcados;
-      if(d.notasQ)notasQ=d.notasQ;
-      if(d.cfg)Object.entries(d.cfg).forEach(([k,v])=>{const e=document.getElementById('cfg-'+k);if(e)e.value=v;});
-      if(d.nom)Object.entries(d.nom).forEach(([k,v])=>{const e=document.getElementById('nom-'+k);if(e)e.value=v;});
-      if(d.desde)Object.entries(d.desde).forEach(([k,v])=>{const e=document.getElementById('desde-'+k);if(e)e.value=v;});
-      // Also save to localStorage as backup
-      try{localStorage.setItem(LS,JSON.stringify(d));}catch(e){}
-      recalc();
-      console.log('✅ Datos cargados desde Supabase');
-    }
-  }catch(e){console.log('Supabase load error',e);}
-}
-
 load();
 if(!curMesKey){const h=hoy(),[hy,hm]=h.split('-');curMesKey=`${hy}-${hm}`;if(!MESES_LIST.find(m=>m.key===curMesKey))curMesKey=MESES_LIST[0].key;}
 if(!curAnioKey){curAnioKey=String(MESES_LIST[0].y);}
 buildMesSel('ms-r');buildMesSel('ms-g');buildAnioSel();recalc();
-// Load from Supabase (overrides localStorage if cloud data exists)
 loadFromSupabase();
 </script>
 </body>
