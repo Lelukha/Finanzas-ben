@@ -479,6 +479,33 @@ const VENCE={r1:1,r2:8,sor:7,pre:7,esc:5,ser:20,nat:1};
 const GRACIA={r1:5,r2:5};
 // No fixed date: sup, nut, gym, lim (weekly martha)
 
+function calcColegiatura(dateStr){
+  // Leo MAT-K3: $3,050 días 1-5, $3,150 días 6-10, $3,250 días 11-30
+  // + $600 academias fijo
+  const academias=600;
+  const hoy=new Date(dateStr+'T12:00:00');
+  const dia=hoy.getDate();
+  // Determine which range applies based on current date within the month
+  // Find what day of month we're currently in
+  const today=new Date();
+  const mesKey=dateStr.slice(0,7);
+  const [y,m]=mesKey.split('-').map(Number);
+  // Check if we're still in this payment month
+  const todayMes=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+  let base=3050;
+  if(todayMes===mesKey){
+    const d=today.getDate();
+    if(d<=5)base=3050;
+    else if(d<=10)base=3150;
+    else base=3250;
+  } else if(todayMes>mesKey){
+    base=3250; // already past, max rate
+  } else {
+    base=3050; // future month, assume best rate
+  }
+  return base+academias;
+}
+
 function calcMontoQuincena(k,dateStr,totalMensual){
   const dsDate=new Date(dateStr+'T12:00:00');
   const idx=PAGOS_DATES.indexOf(dateStr);
@@ -492,8 +519,8 @@ function calcMontoQuincena(k,dateStr,totalMensual){
   if(vDate<=dsDate)vDate=new Date(y,m,vDia); // next month
   const gracia=(GRACIA[k]||0)*86400000;
   const deadline=new Date(vDate.getTime()+gracia);
-  // If next quincena arrives AFTER the deadline → must pay full this quincena
-  if(nextDate>deadline)return totalMensual;
+  // If next quincena arrives ON or AFTER the deadline → must pay full this quincena
+  if(nextDate>=deadline)return totalMensual;
   // Next quincena arrives before or on deadline → split half
   return totalMensual/2;
 }
@@ -525,7 +552,12 @@ function desglosesPago(dateStr){
       const semanas=Math.round((dFin-dIni)/(7*86400000));
       montos[k]=850*semanas;
     } else {
-      montos[k]=calcMontoQuincena(k,dateStr,total);
+      if(k==='esc'){
+        const colTotal=calcColegiatura(dateStr);
+        montos[k]=calcMontoQuincena(k,dateStr,colTotal);
+      } else {
+        montos[k]=calcMontoQuincena(k,dateStr,total);
+      }
     }
   }
   // Solo resta lo que el usuario haya marcado como guardado o pagado
@@ -548,14 +580,30 @@ function desglosesPago(dateStr){
   return{mr,montos,libre,nP,totalComprometido};
 }
 function pagosEnPeriodo(dateStr){
-  const idx=PAGOS_DATES.indexOf(dateStr);const nextDs=idx>=0&&idx<PAGOS_DATES.length-1?PAGOS_DATES[idx+1]:null;
-  const dIni=new Date(dateStr+'T12:00:00');const dFin=nextDs?new Date(nextDs+'T12:00:00'):new Date(dIni.getTime()+14*86400000);
-  const result=[];const dias=[];
-  for(let d=new Date(dIni);d<dFin;d=new Date(d.getTime()+86400000))dias.push(d.getDate());
-  PAGOS_FIJOS_DIAS.forEach(p=>{
-    if(p.dia===999){result.push({nom:p.nom,urgente:false,semanal:true});return;}
-    if(dias.includes(p.dia))result.push({nom:p.nom,urgente:p.dia<=dias[0]+2,semanal:false});
-  });
+  // Show all gastos that have a non-zero monto assigned to this quincena
+  const mesDsKey=dateStr.slice(0,7);
+  const result=[];
+  const FIJOS_KEYS=['r1','r2','sup','nut','esc','ser','nat','lim','gym'];
+  // Check sor
+  if(gastoActivo('sor',mesDsKey)){
+    const m=calcMontoQuincena('sor',dateStr,+document.getElementById('cfg-sor')?.value||21061);
+    if(m>0)result.push({nom:nom('sor'),urgente:m>10000,semanal:false});
+  }
+  // Check pre
+  if(gastoActivo('pre',mesDsKey)){
+    result.push({nom:nom('pre'),urgente:true,semanal:false});
+  }
+  // Check each fijo
+  for(const k of FIJOS_KEYS){
+    if(!gastoActivo(k,mesDsKey))continue;
+    const total=k==='esc'?calcColegiatura(dateStr):(+document.getElementById('cfg-'+k)?.value||0);
+    if(!total)continue;
+    const m=k==='lim'?850:calcMontoQuincena(k,dateStr,total);
+    if(m>0){
+      const urgente=VENCE[k]&&!GRACIA[k]&&m===total;
+      result.push({nom:nom(k),urgente:!!urgente,semanal:k==='lim'});
+    }
+  }
   return result;
 }
 function save(){
