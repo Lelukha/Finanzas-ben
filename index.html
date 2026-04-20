@@ -371,11 +371,12 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 
 async function syncToSupabase(data){
   try{
-    await fetch(`${SUPABASE_URL}/rest/v1/finanzas_ben?id=eq.ben`,{
-      method:'PATCH',
-      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
-      body:JSON.stringify({data,updated_at:new Date().toISOString()})
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/finanzas_ben`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({id:'ben',data,updated_at:new Date().toISOString()})
     });
+    console.log('Supabase sync status:',res.status);
   }catch(e){console.log('Supabase sync error',e);}
 }
 
