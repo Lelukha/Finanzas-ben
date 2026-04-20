@@ -332,8 +332,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="ir"><input class="ivn" id="nom-nat" value="Natación" oninput="save();recalc()"><input class="iv" type="number" id="cfg-nat" value="1650" oninput="save();recalc()"><input class="iv" type="month" id="desde-nat" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
     <div class="ir"><input class="ivn" id="nom-lim" value="Martha (doméstica)" oninput="save();recalc()"><input class="iv" type="number" id="cfg-lim" value="3650" oninput="save();recalc()"><input class="iv" type="month" id="desde-lim" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
     <div class="ir"><input class="ivn" id="nom-gym" value="Gimnasio" oninput="save();recalc()"><input class="iv" type="number" id="cfg-gym" value="650" oninput="save();recalc()"><input class="iv" type="month" id="desde-gym" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
-    <div class="ir"><input class="ivn" id="nom-sor" value="Sorento (Kia Finance)" oninput="save();recalc()"><input class="iv" type="number" id="cfg-sor" value="21061" oninput="save();recalc()"><input class="iv" type="month" id="desde-sor" value="2026-05" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
-    <div class="ir"><input class="ivn" id="nom-pre" value="Préstamo familiar" oninput="save();recalc()"><input class="iv" type="number" id="cfg-pre" value="17500" oninput="save();recalc()"><input class="iv" type="month" id="desde-pre" value="2026-05" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
+    <div class="ir"><input class="ivn" id="nom-sor" value="Sorento (Kia Finance)" oninput="save();recalc()"><input class="iv" type="number" id="cfg-sor" value="21061" oninput="save();recalc()"><input class="iv" type="month" id="desde-sor" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
+    <div class="ir"><input class="ivn" id="nom-pre" value="Préstamo familiar" oninput="save();recalc()"><input class="iv" type="number" id="cfg-pre" value="17500" oninput="save();recalc()"><input class="iv" type="month" id="desde-pre" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
     <div class="ir">
       <div><div class="il">Abono extra típico (opcional)</div><div class="is">Default tabla préstamo — editable por mes</div></div>
       <input class="iv" type="number" id="cfg-ext" value="5000" oninput="save();recalc()">
@@ -511,8 +511,9 @@ function desglosesPago(dateStr){
   const montos={};
   // Sorento
   montos.sor=gastoActivo('sor',mesDsKey)?calcMontoQuincena('sor',dateStr,c.sor):0;
-  // Préstamo interés
-  montos.pre=gastoActivo('pre',mesDsKey)?12500:0;
+  // Préstamo interés — siempre mitad por quincena para apartar
+  const nPre=pagosDelMes(mesDsKey).length;
+  montos.pre=gastoActivo('pre',mesDsKey)?Math.round(12500/nPre):0;
   // Préstamo capital opcional
   montos.preExt=gastoActivo('pre',mesDsKey)?(+document.getElementById('cfg-ext')?.value||5000):0;
   // Otros fijos
