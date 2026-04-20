@@ -480,25 +480,21 @@ const GRACIA={r1:5,r2:5};
 // No fixed date: sup, nut, gym, lim (weekly martha)
 
 function calcMontoQuincena(k,dateStr,totalMensual){
-  // Returns how much of this gasto should be covered in this quincena
   const dsDate=new Date(dateStr+'T12:00:00');
   const idx=PAGOS_DATES.indexOf(dateStr);
   const nextDs=idx>=0&&idx<PAGOS_DATES.length-1?PAGOS_DATES[idx+1]:null;
   const nextDate=nextDs?new Date(nextDs+'T12:00:00'):new Date(dsDate.getTime()+15*86400000);
   const vDia=VENCE[k];
-  // No fixed date — always half
   if(!vDia)return totalMensual/2;
-  // Find vencimiento date in current or next month
   const [y,m]=dateStr.split('-').map(Number);
-  // Try current month first
+  // Find the next upcoming vencimiento from this quincena date
   let vDate=new Date(y,m-1,vDia);
-  // If vDate is before this quincena, try next month
-  if(vDate<dsDate)vDate=new Date(y,m,vDia);
+  if(vDate<=dsDate)vDate=new Date(y,m,vDia); // next month
   const gracia=(GRACIA[k]||0)*86400000;
   const deadline=new Date(vDate.getTime()+gracia);
-  // If deadline is before next quincena → must pay full this quincena
-  if(deadline<nextDate)return totalMensual;
-  // Otherwise split half
+  // If next quincena arrives AFTER the deadline → must pay full this quincena
+  if(nextDate>deadline)return totalMensual;
+  // Next quincena arrives before or on deadline → split half
   return totalMensual/2;
 }
 
@@ -532,13 +528,18 @@ function desglosesPago(dateStr){
       montos[k]=calcMontoQuincena(k,dateStr,total);
     }
   }
-  // Total comprometido usando montos editados si existen
+  // Solo resta lo que el usuario haya marcado como guardado o pagado
   let totalComprometido=0;
-  if(montos.sor>0){const ed=ap['monto_sorento'];totalComprometido+=(ed!==undefined?+ed:montos.sor);}
-  if(montos.pre>0){const ed=ap['monto_prestamo'];totalComprometido+=(ed!==undefined?+ed:montos.pre);}
-  if(montos.preExt>0){const ed=ap['monto_prestamo_capital'];totalComprometido+=(ed!==undefined?+ed:montos.preExt);}
+  const stSorL=ap['sorento']||'none';
+  const stPreL=ap['prestamo']||'none';
+  const stPreCapL=ap['prestamo_capital']||'none';
+  if(montos.sor>0&&stSorL!=='none'){const ed=ap['monto_sorento'];totalComprometido+=(ed!==undefined?+ed:montos.sor);}
+  if(montos.pre>0&&stPreL!=='none'){const ed=ap['monto_prestamo'];totalComprometido+=(ed!==undefined?+ed:montos.pre);}
+  if(montos.preExt>0&&stPreCapL!=='none'){const ed=ap['monto_prestamo_capital'];totalComprometido+=(ed!==undefined?+ed:montos.preExt);}
   for(const k of FIJOS_KEYS){
     if(!montos[k])continue;
+    const stK=ap['gasto_'+k]||'none';
+    if(stK==='none')continue;
     const ed=ap['monto_gasto_'+k];
     totalComprometido+=(ed!==undefined?+ed:montos[k]);
   }
