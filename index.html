@@ -569,11 +569,14 @@ function calcColegiatura(dateStr){
 }
 
 function calcMontoQuincena(k,dateStr,totalMensual){
+  // Normalize key to match VENCE and aportaciones keys
+  const vKey=k==='sor'?'sorento':k==='pre'?'prestamo':k;
+  const stKey=k==='sor'?'sorento':k==='pre'?'prestamo':'gasto_'+k;
   const dsDate=new Date(dateStr+'T12:00:00');
   const idx=PAGOS_DATES.indexOf(dateStr);
   const nextDs=idx>=0&&idx<PAGOS_DATES.length-1?PAGOS_DATES[idx+1]:null;
   const nextDate=nextDs?new Date(nextDs+'T12:00:00'):new Date(dsDate.getTime()+15*86400000);
-  const vDia=VENCE[k];
+  const vDia=VENCE[vKey];
   if(!vDia)return totalMensual/2;
   const [y,m]=dateStr.split('-').map(Number);
   let vDate=new Date(y,m-1,vDia);
@@ -586,7 +589,6 @@ function calcMontoQuincena(k,dateStr,totalMensual){
   let yaApartado=0;
   for(const pDs of prevQs){
     const pAp=aportaciones[pDs]||{};
-    const stKey=k==='sor'?'sorento':k==='pre'?'prestamo':'gasto_'+k;
     const pSt=pAp[stKey]||'none';
     if(pSt==='none')continue;
     const ed=pAp['monto_'+stKey];
