@@ -591,13 +591,14 @@ function calcMontoQuincena(k,dateStr,totalMensual){
     const pAp=aportaciones[pDs]||{};
     const pSt=pAp[stKey]||'none';
     if(pSt==='none')continue;
-    const ed=pAp['monto_'+stKey];
-    yaApartado+=(ed!==undefined?+ed:totalMensual/2);
+    // Use edited monto if exists, otherwise default half
+    const montoKey='monto_'+stKey;
+    const ed=pAp[montoKey];
+    const montoUsado=(ed!==undefined&&ed!==null&&ed!=='')?+ed:(totalMensual/2);
+    yaApartado+=montoUsado;
   }
-  // If deadline before next quincena → full amount minus what's already covered
-  if(nextDate>=deadline)return Math.max(0,totalMensual-yaApartado);
-  // Otherwise → half minus what's already covered
-  return Math.max(0,totalMensual/2-yaApartado);
+  // Full amount minus what's already covered
+  return Math.max(0,totalMensual-yaApartado);
 }
 
 function desglosesPago(dateStr){
