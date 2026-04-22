@@ -815,7 +815,8 @@ function renderPagos(){
     else document.getElementById('alerta-quincena').innerHTML='';
   }
   const INICIO_TRACKING='2026-04-21';
-  const past=[];const fut=PAGOS_DATES.filter(d=>d>=h&&d>=INICIO_TRACKING).slice(0,6);const lista=[...past,...fut];
+  const past=PAGOS_DATES.filter(d=>d<h&&d>=INICIO_TRACKING).slice(-1);
+  const fut=PAGOS_DATES.filter(d=>d>=h&&d>=INICIO_TRACKING).slice(0,6);const lista=[...past,...fut];
   const c=cfg();let html='';
   for(const ds of lista){
     const isPast=ds<h;const cobrado=cobrados[ds]||false;const ap=aportaciones[ds]||{};const dg=desglosesPago(ds);const mr=dg.mr;const tcActual=mr.tc;const tcDiff=tcActual-c.tcBase;
