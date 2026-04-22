@@ -648,6 +648,13 @@ function desglosesPago(dateStr){
     if(st==='guardado')totalGuardado+=monto;
     else if(st==='pagado')totalGastado+=monto;
   }
+  // Add gastos extra for this quincena
+  const gastosQ=(gastosV[mesDsKey]||[]).filter(g=>g.quincena===dateStr);
+  for(const gx of gastosQ){
+    const gSt=gx.st||'none';
+    if(gSt==='guardado')totalGuardado+=gx.monto||0;
+    else if(gSt==='pagado')totalGastado+=gx.monto||0;
+  }
   const libre=mr.total-totalGuardado-totalGastado;
   const nP=pagosDelMes(mesDsKey).length;
   return{mr,montos,libre,nP,totalComprometido,totalGuardado,totalGastado};
@@ -833,6 +840,14 @@ function renderPagos(){
       const isEd=stVal!=='none';
       filasGastos+=`<div class="ar ${rowCls(stVal)}" onclick="ciclar('${ds}','${stK}')"><div class="ai ${icoCls(stVal)}">${ico(stVal)}</div><div class="an"><div class="nm">${label}</div><div class="ht" style="font-size:9px">${hint(stVal)}</div></div>${isEd?`<input class="ext-inp" type="number" value="${montoEd}" onclick="event.stopPropagation()" onchange="setMontoReal('${ds}','${stK}',this.value)" style="width:80px;margin-right:4px;">`:`<div class="aa" style="color:${col(stVal)}">${fmt(aportK)}</div>`}</div>`;
     }
+    // Gastos extra asignados a esta quincena
+    const gastosDeEstaQ=(gastosV[mesDsKey]||[]).filter(g=>g.quincena===ds);
+    for(const[gi,gx] of gastosDeEstaQ.entries()){
+      const gIdx=(gastosV[mesDsKey]||[]).indexOf(gx);
+      const gSt=gx.st||'none';
+      const gIcoCls=gSt==='guardado'?'g':gSt==='pagado'?'p':'';
+      filasGastos+=`<div class="ar ${rowCls(gSt)}" onclick="ciclarGastoQ('${mesDsKey}',${gIdx})"><div class="ai ${icoCls(gSt)}">${ico(gSt)}</div><div class="an"><div class="nm" style="color:${gSt==='none'?'var(--pink)':col(gSt)}">${gx.desc||'Gasto extra'}</div><div class="ht">Gasto variable${gSt==='pagado'?' — pagado':gSt==='guardado'?' — apartado':''}</div></div><div class="aa" style="color:${gSt==='none'?'var(--pink)':col(gSt)}">${fmt(gx.monto)}</div></div>`;
+    }
     // Proyección próximas semanas (Martha semanal + resumen de lo pendiente)
     const SEMANA_MS=7*24*3600*1000;
     let proyHtml='';
@@ -911,14 +926,64 @@ function togglePago(key){if(!pagosMarcados[curMesKey])pagosMarcados[curMesKey]={
 function renderGastos(){
   const[y,m]=curMesKey.split('-');document.getElementById('mes-g-lbl').textContent=`${MES[+m-1]} ${y}`;
   const g=gastosV[curMesKey]||[];const el=document.getElementById('gastos-lista');
-  el.innerHTML=g.length?g.map((x,i)=>`<div class="gi"><input class="gd" value="${x.desc||''}" placeholder="Descripción" oninput="upG(${i},'desc',this.value)"><input class="gm" type="number" value="${x.monto||0}" oninput="upG(${i},'monto',this.value)"><button class="db" onclick="delG(${i})">×</button></div>`).join(''):'<div style="color:var(--muted);font-size:13px;padding:8px 0;">Sin gastos extra este mes.</div>';
+  const qsDelMes=PAGOS_DATES.filter(d=>d.startsWith(curMesKey));
+  const qOpts=qsDelMes.map(d=>`<option value="${d}">${fmtDate(d)}</option>`).join('');
+  if(g.length){
+    el.innerHTML=g.map((x,i)=>{
+      const st=x.st||'none';
+      const icoCls2=st==='guardado'?'g':st==='pagado'?'p':'';
+      const rowBg=st==='guardado'?'rgba(251,146,60,0.05)':st==='pagado'?'rgba(52,211,153,0.05)':'';
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--border);background:${rowBg};">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <div class="ai ${icoCls2}" onclick="ciclarGasto(${i})" style="cursor:pointer;flex-shrink:0;">${ico(st)}</div>
+          <input class="gd" value="${x.desc||''}" placeholder="Descripción" 
+            onchange="upGDesc(${i},this.value)" 
+            style="flex:1;">
+          <input class="gm" type="number" value="${x.monto||0}" onchange="upG(${i},'monto',this.value)" style="width:90px;">
+          <button class="db" onclick="delG(${i})">×</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding-left:32px;">
+          <span style="font-size:11px;color:var(--muted);">Quincena:</span>
+          <select onchange="upG(${i},'quincena',this.value)" style="background:var(--card2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;padding:3px 6px;outline:none;">
+            ${qsDelMes.map(d=>`<option value="${d}" ${(x.quincena||'')=== d?'selected':''}>${fmtDate(d)}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px 0;">Sin gastos extra este mes.</div>';
+  }
   const c=cfg(),ps=pagosDelMes(curMesKey);const ingMes=ps.reduce((a,d)=>a+montoReal(d).total,0);
   const gvTotal=g.reduce((a,x)=>a+(+x.monto||0),0);document.getElementById('total-vars').textContent=fmt(gvTotal);
   document.getElementById('libre-v').textContent=`Libre tras variables: ${fmt(ingMes-c.totFijos-gvTotal)}`;
 }
-function addGasto(){if(!gastosV[curMesKey])gastosV[curMesKey]=[];gastosV[curMesKey].push({desc:'',monto:0});renderGastos();save();}
-function upG(i,f,v){gastosV[curMesKey][i][f]=f==='monto'?+v:v;save();renderGastos();}
-function delG(i){gastosV[curMesKey].splice(i,1);renderGastos();save();}
+function addGasto(){
+  if(!gastosV[curMesKey])gastosV[curMesKey]=[];
+  // Default to current/next quincena
+  const h=hoy();
+  const curQ=PAGOS_DATES.find(d=>d>=h&&d.startsWith(curMesKey))||PAGOS_DATES.find(d=>d.startsWith(curMesKey))||'';
+  gastosV[curMesKey].push({desc:'',monto:0,quincena:curQ,st:'none'});
+  save();renderGastos();
+}
+function upG(i,f,v){
+  gastosV[curMesKey][i][f]=f==='monto'?+v:v;
+  save();
+  // Only re-render for non-text fields to avoid mobile keyboard issue
+  if(f!=='desc')renderGastos();
+}
+function upGDesc(i,v){gastosV[curMesKey][i].desc=v;save();}
+function ciclarGastoQ(mesKey,i){
+  if(!gastosV[mesKey]||!gastosV[mesKey][i])return;
+  const cur=gastosV[mesKey][i].st||'none';
+  gastosV[mesKey][i].st=cur==='none'?'guardado':cur==='guardado'?'pagado':'none';
+  save();renderPagos();renderGastos();
+}
+function ciclarGasto(i){
+  const g=gastosV[curMesKey][i];
+  const cur=g.st||'none';
+  g.st=cur==='none'?'guardado':cur==='guardado'?'pagado':'none';
+  save();renderGastos();
+}
 function renderPrestamo(){
   const loan=buildLoan();const paid=loan.filter(r=>r.done);const lastI=paid.length?Math.max(...paid.map(r=>r.i)):-1;
   const sAct=lastI>=0?loan[lastI].saldo:500000;const capP=500000-sAct,mR=loan.filter(r=>r.saldo>0).length;const pL=Math.round(capP/500000*100);
