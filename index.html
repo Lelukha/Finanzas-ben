@@ -607,9 +607,22 @@ function desglosesPago(dateStr){
   const montos={};
   // Sorento
   montos.sor=gastoActivo('sor',mesDsKey)?calcMontoQuincena('sor',dateStr,c.sor):0;
-  // Préstamo familiar: pago mensual total = 17,500 (interés + capital mínimo)
+  // Préstamo familiar: pago mensual total = 17,500, check what's already paid
   const nPre=pagosDelMes(mesDsKey).length;
-  montos.pre=gastoActivo('pre',mesDsKey)?Math.round(17500/nPre):0;
+  if(gastoActivo('pre',mesDsKey)){
+    const prevQsPre=PAGOS_DATES.filter(d=>d<dateStr&&d.slice(0,7)===mesDsKey);
+    let preYaApartado=0;
+    for(const pDs of prevQsPre){
+      const pAp=aportaciones[pDs]||{};
+      const pSt=pAp['prestamo']||'none';
+      if(pSt==='none')continue;
+      const ed=pAp['monto_prestamo'];
+      preYaApartado+=(ed!==undefined?+ed:Math.round(17500/nPre));
+    }
+    montos.pre=Math.max(0,Math.round(17500/nPre)-preYaApartado);
+  } else {
+    montos.pre=0;
+  }
   // Abono extra opcional a capital (aparte del 17,500)
   montos.preExt=gastoActivo('pre',mesDsKey)?(+document.getElementById('cfg-ext')?.value||5000):0;
   // Otros fijos
