@@ -576,15 +576,26 @@ function calcMontoQuincena(k,dateStr,totalMensual){
   const vDia=VENCE[k];
   if(!vDia)return totalMensual/2;
   const [y,m]=dateStr.split('-').map(Number);
-  // Find the next upcoming vencimiento from this quincena date
   let vDate=new Date(y,m-1,vDia);
-  if(vDate<=dsDate)vDate=new Date(y,m,vDia); // next month
+  if(vDate<=dsDate)vDate=new Date(y,m,vDia);
   const gracia=(GRACIA[k]||0)*86400000;
   const deadline=new Date(vDate.getTime()+gracia);
-  // If next quincena arrives ON or AFTER the deadline → must pay full this quincena
-  if(nextDate>=deadline)return totalMensual;
-  // Next quincena arrives before or on deadline → split half
-  return totalMensual/2;
+  // Check what was already paid/guardado in previous quincenas of the same month
+  const mesDsKey=dateStr.slice(0,7);
+  const prevQs=PAGOS_DATES.filter(d=>d<dateStr&&d.slice(0,7)===mesDsKey);
+  let yaApartado=0;
+  for(const pDs of prevQs){
+    const pAp=aportaciones[pDs]||{};
+    const stKey=k==='sor'?'sorento':k==='pre'?'prestamo':'gasto_'+k;
+    const pSt=pAp[stKey]||'none';
+    if(pSt==='none')continue;
+    const ed=pAp['monto_'+stKey];
+    yaApartado+=(ed!==undefined?+ed:totalMensual/2);
+  }
+  // If deadline before next quincena → full amount minus what's already covered
+  if(nextDate>=deadline)return Math.max(0,totalMensual-yaApartado);
+  // Otherwise → half minus what's already covered
+  return Math.max(0,totalMensual/2-yaApartado);
 }
 
 function desglosesPago(dateStr){
