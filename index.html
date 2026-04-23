@@ -232,9 +232,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   <div class="rb">
     <div class="ri"><div class="rl">Quincenas</div><div class="rv teal" id="r-npagos">-</div></div>
     <div class="ri"><div class="rl">Entra</div><div class="rv green" id="r-ing">-</div></div>
-    <div class="ri"><div class="rl">Fijos</div><div class="rv red" id="r-fij">-</div></div>
+    <div class="ri"><div class="rl">Gastado</div><div class="rv red" id="r-fij">-</div></div>
     <div class="ri"><div class="rl">Libre</div><div class="rv green" id="r-lib">-</div></div>
   </div>
+  <div id="resumen-quincenas" style="margin-bottom:10px;"></div>
   <div class="pw">
     <div class="pl"><span>Comprometido del ingreso</span><span id="pct-g">0%</span></div>
     <div class="pb"><div class="pf" id="bar-g" style="width:0%"></div></div>
@@ -242,13 +243,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   <div class="card">
     <div class="card-title">Desglose fijos del mes</div>
     <div id="lista-fijos"></div>
-  </div>
-  <div class="card" style="padding:0;overflow:hidden;">
-    <div style="padding:14px 14px 10px;display:flex;justify-content:space-between;align-items:center;">
-      <div class="card-title" style="margin:0;">Control de pagos — <span id="ctrl-mes-lbl"></span></div>
-      <div id="ctrl-pct" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--teal);">0/0</div>
-    </div>
-    <div id="control-pagos"></div>
   </div>
   <button class="pdf-btn" onclick="exportPDF()">🖨️ Exportar resumen del mes a PDF</button>
 </div>
@@ -300,15 +294,19 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 <div id="tab-anual" class="sec">
   <div class="ms" id="ms-anual"></div>
   <div class="card">
-    <div class="card-title">Resumen del año — <span id="anual-lbl"></span></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;margin-bottom:4px;">
-      <div style="font-size:9px;color:var(--muted);padding:4px 0;text-transform:uppercase;letter-spacing:.5px;">Mes</div>
-      <div style="font-size:9px;color:var(--green);padding:4px 0;text-align:right;text-transform:uppercase;letter-spacing:.5px;">Entra</div>
-      <div style="font-size:9px;color:var(--red);padding:4px 0;text-align:right;text-transform:uppercase;letter-spacing:.5px;">Sale</div>
-      <div style="font-size:9px;color:var(--teal);padding:4px 0;text-align:right;text-transform:uppercase;letter-spacing:.5px;">Libre</div>
+    <div class="card-title">Resumen anual — datos reales <span id="anual-lbl"></span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;margin-bottom:4px;padding-bottom:6px;border-bottom:1px solid var(--border);">
+      <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Mes</div>
+      <div style="font-size:9px;color:var(--green);text-align:right;text-transform:uppercase;letter-spacing:.5px;">Entra</div>
+      <div style="font-size:9px;color:var(--orange);text-align:right;text-transform:uppercase;letter-spacing:.5px;">Gastado</div>
+      <div style="font-size:9px;color:var(--teal);text-align:right;text-transform:uppercase;letter-spacing:.5px;">Libre</div>
     </div>
     <div id="anual-lista"></div>
     <div id="anual-totales" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Libre real por quincena</div>
+    <div style="position:relative;height:180px;margin:8px 0;"><canvas id="libre-chart"></canvas></div>
   </div>
   <div class="card">
     <div class="card-title">Historial tipo de cambio</div>
@@ -941,12 +939,25 @@ function buildMesSel(id){
 function renderResumen(){
   const c=cfg(),ps=pagosDelMes(curMesKey),nP=ps.length;
   const ingMes=ps.reduce((a,d)=>a+montoReal(d).total,0);
+  // Use real data: sum gastado and guardado from quincenas
+  let totalGastadoReal=0,totalGuardadoReal=0;
+  for(const ds of ps){
+    const dg=desglosesPago(ds);
+    totalGastadoReal+=dg.totalGastado;
+    totalGuardadoReal+=dg.totalGuardado;
+  }
   const gvTotal=(gastosV[curMesKey]||[]).reduce((a,g)=>a+(+g.monto||0),0);
-  const libre=ingMes-c.totFijos-gvTotal;const pct=Math.min(100,Math.round((c.totFijos+gvTotal)/ingMes*100));
+  const totalComprometido=totalGastadoReal+totalGuardadoReal;
+  const libre=ingMes-totalComprometido;
+  const pct=Math.min(100,Math.round(totalComprometido/ingMes*100));
   document.getElementById('r-npagos').textContent=nP+(nP===3?' 🟢':'');
-  document.getElementById('r-ing').textContent=fmt(ingMes);document.getElementById('r-fij').textContent=fmt(c.totFijos);
-  document.getElementById('r-lib').textContent=fmt(libre);document.getElementById('r-lib').className='rv '+(libre>=0?'green':'red');
-  document.getElementById('pct-g').textContent=pct+'%';document.getElementById('bar-g').style.width=pct+'%';
+  document.getElementById('r-ing').textContent=fmt(ingMes);
+  document.getElementById('r-fij').textContent=fmt(totalGastadoReal);
+  document.getElementById('r-lib').textContent=fmt(libre);
+  document.getElementById('r-lib').className='rv '+(libre>=0?'green':'red');
+  document.getElementById('pct-g').textContent=pct+'%';
+  document.getElementById('bar-g').style.width=pct+'%';
+  // Desglose fijos config
   let fh='';
   for(const[k,v]of Object.entries(c.fijos))fh+=`<div class="dr"><span class="dl">${k}</span><span>${fmt(v)}</span></div>`;
   fh+=`<div class="dr"><span class="dl">${nom('sor')}</span><span>${fmt(c.sor)}</span></div>`;
@@ -954,12 +965,20 @@ function renderResumen(){
   document.getElementById('lista-fijos').innerHTML=fh;
   const[y,m]=curMesKey.split('-');
   document.getElementById('hdr-sub').textContent=`${MES[+m-1]} ${y} · ~${fmt(c.porPago)} por quincena`;
-  document.getElementById('ctrl-mes-lbl').textContent=`${MES[+m-1]} ${y}`;
-  const pm=pagosMarcados[curMesKey]||{};
-  const items=[...Object.entries(c.fijos).map(([k,v])=>({key:k,label:k,monto:v})),{key:'_sor',label:nom('sor'),monto:c.sor},{key:'_pre',label:nom('pre'),monto:c.preF}];
-  const done=items.filter(it=>pm[it.key]).length;document.getElementById('ctrl-pct').textContent=`${done}/${items.length}`;
-  let ch='';for(const it of items){const d=!!pm[it.key];ch+=`<div class="cp ${d?'done':''}" onclick="togglePago('${it.key}')"><div class="cp-ck ${d?'done':''}">${d?'✓':''}</div><div class="cp-nm" style="color:${d?'var(--muted)':'var(--text)'};text-decoration:${d?'line-through':'none'}">${it.label}</div><div class="cp-amt" style="color:${d?'var(--green)':'var(--text)'}">${fmt(it.monto)}</div></div>`;}
-  document.getElementById('control-pagos').innerHTML=ch;
+  // Per-quincena breakdown
+  let qHtml='';
+  for(const ds of ps){
+    const dg=desglosesPago(ds);const mr=dg.mr;
+    const cobrado=cobrados[ds]||false;
+    qHtml+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;align-items:center;">
+      <div style="color:var(--muted)">${fmtDate(ds)}</div>
+      <div style="text-align:right;color:var(--green);font-family:'JetBrains Mono',monospace;">${fmt(mr.total)}</div>
+      <div style="text-align:right;color:var(--orange);font-family:'JetBrains Mono',monospace;">${fmt(dg.totalGastado+dg.totalGuardado)}</div>
+      <div style="text-align:right;color:${dg.libre>=0?'var(--teal)':'var(--red)'};font-family:'JetBrains Mono',monospace;font-weight:600;">${fmt(dg.libre)}</div>
+    </div>`;
+  }
+  const rqEl=document.getElementById('resumen-quincenas');
+  if(rqEl)rqEl.innerHTML=`<div class="card" style="padding:10px 14px;">${qHtml}</div>`;
 }
 function togglePago(key){if(!pagosMarcados[curMesKey])pagosMarcados[curMesKey]={};pagosMarcados[curMesKey][key]=!pagosMarcados[curMesKey][key];save();renderResumen();}
 function renderGastos(){
@@ -1046,23 +1065,59 @@ function toggleP(i){loanPaid[i]=!loanPaid[i];save();renderPrestamo();}
 function buildAnioSel(){
   const el=document.getElementById('ms-anual');el.innerHTML='';const anios=getAnios();
   if(!curAnioKey)curAnioKey=String(anios[0]);
-  anios.forEach(y=>{const c=document.createElement('div');c.className='mc'+(String(y)===curAnioKey?' active':'');c.textContent=y;c.onclick=()=>{curAnioKey=String(y);buildAnioSel();renderAnual();save();};el.appendChild(c);});
+  anios.forEach(y=>{const c=document.createElement('div');c.className='mc'+(String(y)===curAnioKey?' active':'');c.textContent=y;c.onclick=()=>{curAnioKey=String(y);buildAnioSel();
+renderAnual();save();};el.appendChild(c);});
 }
 function renderAnual(){
   const c=cfg();const mesesAnio=MESES_LIST.filter(m=>String(m.y)===curAnioKey);
-  document.getElementById('anual-lbl').textContent=curAnioKey;
+  (document.getElementById('anual-lbl')||{}).textContent=curAnioKey;
   let html='',totIng=0,totSal=0,totLib=0;
   for(const{key,m}of mesesAnio){
     const ps=pagosDelMes(key);const ing=ps.reduce((a,d)=>a+montoReal(d).total,0);
-    const gv=(gastosV[key]||[]).reduce((a,g)=>a+(+g.monto||0),0);const sal=c.totFijos+gv;const lib=ing-sal;
+      // Use real data from aportaciones
+    let realGastado=0,realGuardado=0;
+    for(const ds of ps){const dg=desglosesPago(ds);realGastado+=dg.totalGastado;realGuardado+=dg.totalGuardado;}
+    const gvMes=(gastosV[key]||[]).reduce((a,g)=>a+(+g.monto||0),0);
+    const sal=realGastado+realGuardado;const lib=ing-sal;
     totIng+=ing;totSal+=sal;totLib+=lib;
-    html+=`<div class="anual-row"><div class="anual-mes">${MES[m-1].slice(0,3)}</div><div class="anual-ing">${fmt(ing)}</div><div class="anual-sal red">${fmt(sal)}</div><div class="anual-lib" style="color:${lib>=0?'var(--green)':'var(--red)'}">${fmt(lib)}</div></div>`;
+    const isFuture=key>hoy().slice(0,7);
+    html+=`<div class="anual-row"><div class="anual-mes">${MES[m-1].slice(0,3)} ${isFuture?'<span style="font-size:9px;color:var(--muted)">proj</span>':''}</div><div class="anual-ing">${fmt(ing)}</div><div class="anual-sal" style="color:var(--orange)">${fmt(sal)}</div><div class="anual-lib" style="color:${lib>=0?'var(--teal)':'var(--red)'}">${fmt(lib)}</div></div>`;
   }
   document.getElementById('anual-lista').innerHTML=html;
   document.getElementById('anual-totales').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;"><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;">TOTAL</div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--green);text-align:right;">${fmt(totIng)}</div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--red);text-align:right;">${fmt(totSal)}</div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${totLib>=0?'var(--green)':'var(--red)'};text-align:right;">${fmt(totLib)}</div></div>`;
   const entries=Object.entries(tcReales).filter(([,v])=>v>0).sort(([a],[b])=>b.localeCompare(a)).slice(0,15);
   if(entries.length===0){document.getElementById('tc-historial').innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px 0;">Sin registros de TC aún.</div>';}
   else{let th='';entries.forEach(([d,v])=>{th+=`<div class="tc-hist-row"><span class="tc-hist-d">${fmtDate(d)}</span><span class="tc-hist-v">$${(+v).toFixed(2)}</span></div>`;});document.getElementById('tc-historial').innerHTML=th;}
+}
+function renderLibreChart(){
+  const el=document.getElementById('libre-chart');if(!el)return;
+  const INICIO='2026-04-21';
+  const qs=PAGOS_DATES.filter(d=>d>=INICIO).slice(0,12);
+  const labels=qs.map(d=>fmtDate(d).replace(' 2026','').replace(' 2027',''));
+  const data=qs.map(d=>{const dg=desglosesPago(d);return Math.round(dg.libre);});
+  if(window._libreChart)window._libreChart.destroy();
+  window._libreChart=new Chart(el,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        label:'Libre real',
+        data,
+        backgroundColor:data.map(v=>v>=0?'rgba(52,211,153,0.6)':'rgba(248,113,113,0.6)'),
+        borderColor:data.map(v=>v>=0?'#34D399':'#F87171'),
+        borderWidth:1,
+        borderRadius:4,
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'rgba(255,255,255,0.3)',font:{size:9}},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{ticks:{color:'rgba(255,255,255,0.3)',font:{size:9},callback:v=>v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v},grid:{color:'rgba(255,255,255,0.05)'}}
+      }
+    }
+  });
 }
 function exportPDF(){const[y,m]=curMesKey.split('-');document.title=`Finanzas Ben — ${MES[+m-1]} ${y}`;window.print();setTimeout(()=>document.title='Finanzas Ben',2000);}
 function showTab(id,el){
@@ -1074,7 +1129,8 @@ function recalc(){renderPagos();renderResumen();renderGastos();renderPrestamo();
 load();
 if(!curMesKey){const h=hoy(),[hy,hm]=h.split('-');curMesKey=`${hy}-${hm}`;if(!MESES_LIST.find(m=>m.key===curMesKey))curMesKey=MESES_LIST[0].key;}
 if(!curAnioKey){curAnioKey=String(MESES_LIST[0].y);}
-buildMesSel('ms-r');buildMesSel('ms-g');buildAnioSel();recalc();
+buildMesSel('ms-r');buildMesSel('ms-g');buildAnioSel();
+recalc();
 loadFromSupabase();
 </script>
 </body>
