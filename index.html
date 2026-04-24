@@ -336,12 +336,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="ir"><input class="ivn" id="nom-r1" value="Renta propia (día 1)" oninput="save();recalc()"><input class="iv" type="number" id="cfg-r1" value="14000" oninput="save();recalc()"><input class="iv" type="month" id="desde-r1" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
     <div class="ir"><input class="ivn" id="nom-r2" value="Renta Adriana (día 8)" oninput="save();recalc()"><input class="iv" type="number" id="cfg-r2" value="9000" oninput="save();recalc()"><input class="iv" type="month" id="desde-r2" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
     <div class="ir"><input class="ivn" id="nom-sup" value="Súper" oninput="save();recalc()"><input class="iv" type="number" id="cfg-sup" value="14000" oninput="save();recalc()"><input class="iv" type="month" id="desde-sup" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
-    <div class="ir"><input class="ivn" id="nom-nut" value="Nutrición" oninput="save();recalc()"><input class="iv" type="number" id="cfg-nut" value="3000" oninput="save();recalc()"><input class="iv" type="month" id="desde-nut" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
+    <div class="ir"><input class="ivn" id="nom-nut" value="Nutrición" oninput="save();recalc()"><input class="iv" type="number" id="cfg-nut" value="3000" oninput="save();recalc()"><input class="iv" type="date" id="ultimo-nut" value="2026-04-29" style="width:120px;font-size:10px;" oninput="save();recalc()" title="Último pago (ciclo 28d)"></div>
     <div class="ir"><input class="ivn" id="nom-esc" value="Colegiatura Leo" oninput="save();recalc()"><input class="iv" type="number" id="cfg-esc" value="3850" oninput="save();recalc()"><input class="iv" type="month" id="desde-esc" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
     <div class="ir"><input class="ivn" id="nom-ser" value="Servicios" oninput="save();recalc()"><input class="iv" type="number" id="cfg-ser" value="4000" oninput="save();recalc()"><input class="iv" type="month" id="desde-ser" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
-    <div class="ir"><input class="ivn" id="nom-nat" value="Natación" oninput="save();recalc()"><input class="iv" type="number" id="cfg-nat" value="1650" oninput="save();recalc()"><input class="iv" type="month" id="desde-nat" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
+    <div class="ir"><input class="ivn" id="nom-nat" value="Natación" oninput="save();recalc()"><input class="iv" type="number" id="cfg-nat" value="1650" oninput="save();recalc()"><input class="iv" type="date" id="ultimo-nat" value="2026-04-23" style="width:120px;font-size:10px;" oninput="save();recalc()" title="Último pago (ciclo 28d)"></div>
     <div class="ir"><input class="ivn" id="nom-lim" value="Martha (doméstica)" oninput="save();recalc()"><input class="iv" type="number" id="cfg-lim" value="3650" oninput="save();recalc()"><input class="iv" type="month" id="desde-lim" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
-    <div class="ir"><input class="ivn" id="nom-gym" value="Gimnasio" oninput="save();recalc()"><input class="iv" type="number" id="cfg-gym" value="650" oninput="save();recalc()"><input class="iv" type="month" id="desde-gym" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
+    <div class="ir"><input class="ivn" id="nom-gym" value="Gimnasio" oninput="save();recalc()"><input class="iv" type="number" id="cfg-gym" value="650" oninput="save();recalc()"><input class="iv" type="date" id="ultimo-gym" value="2026-04-23" style="width:120px;font-size:10px;" oninput="save();recalc()" title="Último pago (ciclo 28d)"></div>
     <div class="ir"><input class="ivn" id="nom-sor" value="Sorento (Kia Finance)" oninput="save();recalc()"><input class="iv" type="number" id="cfg-sor" value="21061" oninput="save();recalc()"><input class="iv" type="month" id="desde-sor" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
     <div class="ir"><input class="ivn" id="nom-pre" value="Préstamo familiar" oninput="save();recalc()"><input class="iv" type="number" id="cfg-pre" value="17500" oninput="save();recalc()"><input class="iv" type="month" id="desde-pre" value="2026-04" style="width:100px;font-size:11px;" oninput="save();recalc()"></div>
     <div class="ir">
@@ -535,7 +535,11 @@ function calcProjection(){
   return{labels,dataA,dataB};
 }
 // Config: vencimiento dia del mes y dias de gracia por gasto
-const VENCE={r1:1,r2:8,sor:7,pre:7,esc:5,ser:20,nat:1};
+const VENCE={r1:1,r2:8,sor:7,pre:7,sorento:7,prestamo:7,ser:20};
+// Gastos con ciclo de 28 días desde último pago (editable)
+const CICLO_28_DEFAULT={nut:'2026-04-29',nat:'2026-04-23',gym:'2026-04-23'};
+// Colegiatura: mensual, vencimiento fin de mes
+const FIN_MES={esc:true};
 const GRACIA={r1:5,r2:5};
 // No fixed date: sup, nut, gym, lim (weekly martha)
 
@@ -566,24 +570,73 @@ function calcColegiatura(dateStr){
   return base+academias;
 }
 
+function ultimoPago(k){
+  const e=document.getElementById('ultimo-'+k);
+  if(e&&e.value)return e.value;
+  return CICLO_28_DEFAULT[k]||null;
+}
+function proximoVencimiento(k,dateStr){
+  // Returns next Date when this gasto is due, given current dateStr
+  const dsDate=new Date(dateStr+'T12:00:00');
+  // Case 1: CICLO_28 — 28 days from last payment
+  if(CICLO_28_DEFAULT[k]!==undefined||document.getElementById('ultimo-'+k)){
+    const last=ultimoPago(k);
+    if(!last)return null;
+    let nextDue=new Date(last+'T12:00:00');
+    nextDue=new Date(nextDue.getTime()+28*86400000);
+    // If nextDue already passed, keep advancing 28 days
+    while(nextDue<=dsDate){
+      nextDue=new Date(nextDue.getTime()+28*86400000);
+    }
+    return nextDue;
+  }
+  // Case 2: FIN_MES — last day of month
+  if(FIN_MES[k]){
+    const [y,m]=dateStr.split('-').map(Number);
+    let finMes=new Date(y,m,0); // last day of month m
+    if(finMes<=dsDate)finMes=new Date(y,m+1,0);
+    return finMes;
+  }
+  // Case 3: VENCE — fixed day of month
+  const vKey=k==='sor'?'sorento':k==='pre'?'prestamo':k;
+  const vDia=VENCE[vKey];
+  if(!vDia)return null;
+  const [y,m]=dateStr.split('-').map(Number);
+  let vDate=new Date(y,m-1,vDia);
+  if(vDate<=dsDate)vDate=new Date(y,m,vDia);
+  return vDate;
+}
+
 function calcMontoQuincena(k,dateStr,totalMensual){
-  // Normalize key to match VENCE and aportaciones keys
   const vKey=k==='sor'?'sorento':k==='pre'?'prestamo':k;
   const stKey=k==='sor'?'sorento':k==='pre'?'prestamo':'gasto_'+k;
   const dsDate=new Date(dateStr+'T12:00:00');
   const idx=PAGOS_DATES.indexOf(dateStr);
   const nextDs=idx>=0&&idx<PAGOS_DATES.length-1?PAGOS_DATES[idx+1]:null;
   const nextDate=nextDs?new Date(nextDs+'T12:00:00'):new Date(dsDate.getTime()+15*86400000);
-  const vDia=VENCE[vKey];
-  if(!vDia)return totalMensual/2;
-  const [y,m]=dateStr.split('-').map(Number);
-  let vDate=new Date(y,m-1,vDia);
-  if(vDate<=dsDate)vDate=new Date(y,m,vDia);
+  // Get next due date (supports CICLO_28, FIN_MES, VENCE)
+  const vDate=proximoVencimiento(k,dateStr);
+  if(!vDate)return totalMensual/2; // No date info — always half
   const gracia=(GRACIA[k]||0)*86400000;
   const deadline=new Date(vDate.getTime()+gracia);
-  // Check what was already paid/guardado in previous quincenas of the same month
-  const mesDsKey=dateStr.slice(0,7);
-  const prevQs=PAGOS_DATES.filter(d=>d<dateStr&&d.slice(0,7)===mesDsKey);
+  // Find the PREVIOUS deadline to know which savings belong to this cycle
+  // A savings cycle runs from: (previous deadline + 1 day) to (this deadline)
+  // Previous cycle boundary
+  let prevDeadline;
+  if(CICLO_28_DEFAULT[k]!==undefined||document.getElementById('ultimo-'+k)){
+    // For 28-day cycles, go back 28 days
+    prevDeadline=new Date(vDate.getTime()-28*86400000);
+  } else {
+    // For monthly, go back one month
+    prevDeadline=new Date(vDate);
+    prevDeadline.setMonth(prevDeadline.getMonth()-1);
+  }
+  const prevDeadlineWithGracia=new Date(prevDeadline.getTime()+gracia);
+  // Sum all guardado/pagado between prev deadline (exclusive) and now
+  const prevQs=PAGOS_DATES.filter(d=>{
+    const dd=new Date(d+'T12:00:00');
+    return d<dateStr&&dd>prevDeadlineWithGracia;
+  });
   let yaApartado=0;
   for(const pDs of prevQs){
     const pAp=aportaciones[pDs]||{};
@@ -611,7 +664,16 @@ function desglosesPago(dateStr){
   // Préstamo familiar: pago mensual total = 17,500, check what's already paid
   const nPre=pagosDelMes(mesDsKey).length;
   if(gastoActivo('pre',mesDsKey)){
-    const prevQsPre=PAGOS_DATES.filter(d=>d<dateStr&&d.slice(0,7)===mesDsKey);
+    // Prestamo vence día 7 — find savings since last deadline
+    const [py,pm]=dateStr.split('-').map(Number);
+    let preVDate=new Date(py,pm-1,7);
+    if(preVDate<=new Date(dateStr+'T12:00:00'))preVDate=new Date(py,pm,7);
+    const prePrevDeadline=new Date(preVDate);
+    prePrevDeadline.setMonth(prePrevDeadline.getMonth()-1);
+    const prevQsPre=PAGOS_DATES.filter(d=>{
+      const dd=new Date(d+'T12:00:00');
+      return d<dateStr&&dd>prePrevDeadline;
+    });
     let preYaApartado=0;
     for(const pDs of prevQsPre){
       const pAp=aportaciones[pDs]||{};
@@ -620,7 +682,11 @@ function desglosesPago(dateStr){
       const ed=pAp['monto_prestamo'];
       preYaApartado+=(ed!==undefined?+ed:Math.round(17500/nPre));
     }
-    montos.pre=Math.max(0,Math.round(17500/nPre)-preYaApartado);
+    // Decide full or half based on deadline
+    const preNextDs=PAGOS_DATES.find(d=>d>dateStr);
+    const preNextDate=preNextDs?new Date(preNextDs+'T12:00:00'):new Date(new Date(dateStr+'T12:00:00').getTime()+15*86400000);
+    const preBase=preNextDate>=preVDate?17500:Math.round(17500/nPre);
+    montos.pre=Math.max(0,preBase-preYaApartado);
   } else {
     montos.pre=0;
   }
@@ -631,13 +697,8 @@ function desglosesPago(dateStr){
     if(!gastoActivo(k,mesDsKey)){montos[k]=0;continue;}
     const total=+document.getElementById('cfg-'+k)?.value||0;
     if(k==='lim'){
-      // Martha: count weeks in this quincena period
-      const idx=PAGOS_DATES.indexOf(dateStr);
-      const nextDs=idx>=0&&idx<PAGOS_DATES.length-1?PAGOS_DATES[idx+1]:null;
-      const dIni=new Date(dateStr+'T12:00:00');
-      const dFin=nextDs?new Date(nextDs+'T12:00:00'):new Date(dIni.getTime()+14*86400000);
-      const semanas=Math.round((dFin-dIni)/(7*86400000));
-      montos[k]=850*semanas;
+      // Martha: will be handled separately as weekly rows in renderPagos
+      montos[k]=0;
     } else {
       if(k==='esc'){
         const colTotal=calcColegiatura(dateStr);
@@ -668,8 +729,16 @@ function desglosesPago(dateStr){
     {stKey:'sorento',mKey:'sorento'},
     {stKey:'prestamo',mKey:'prestamo'},
     {stKey:'prestamo_capital',mKey:'prestamo_capital'},
-    ...['r1','r2','sup','nut','esc','ser','nat','lim','gym'].map(k=>({stKey:'gasto_'+k,mKey:'gasto_'+k}))
+    ...['r1','r2','sup','nut','esc','ser','nat','gym'].map(k=>({stKey:'gasto_'+k,mKey:'gasto_'+k}))
   ];
+  // Martha: weekly entries stored as 'martha_YYYY-MM-DD', count $850 each
+  for(const key of Object.keys(ap)){
+    if(key.startsWith('martha_')){
+      const st=ap[key];
+      if(st==='guardado')totalGuardado+=850;
+      else if(st==='pagado')totalGastado+=850;
+    }
+  }
   for(const{stKey,mKey}of allKeys){
     const st=ap[stKey]||'none';
     if(st==='none')continue;
@@ -871,11 +940,41 @@ function renderPagos(){
     const preActivo=gastoActivo('pre',mesDsKey);
     for(const k of FIJOS_KEYS){
       if(!gastoActivo(k,mesDsKey))continue;
-      const aportK=dg.montos[k]||0;if(!aportK)continue;
+      if(k==='lim')continue; // Martha handled separately as weekly rows
+      const aportK=dg.montos[k]||0;
       const label=nom(k);const stK='gasto_'+k;const stVal=ap[stK]||'none';
+      if(!aportK){
+        // Info row — not due this quincena
+        const nextDue=proximoVencimiento(k,ds);
+        if(nextDue){
+          const dueStr=`${DIA[nextDue.getDay()]} ${nextDue.getDate()} ${MES[nextDue.getMonth()].slice(0,3)}`;
+          filasGastos+=`<div class="ar" style="opacity:0.4;cursor:default;"><div class="ai" style="background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);">·</div><div class="an"><div class="nm" style="color:rgba(255,255,255,0.4);">${label}</div><div class="ht" style="font-size:9px;color:rgba(255,255,255,0.25)">No toca aquí — próximo: ${dueStr}</div></div><div class="aa" style="color:rgba(255,255,255,0.25)">—</div></div>`;
+        }
+        continue;
+      }
       const montoEd=ap['monto_'+stK]!==undefined?ap['monto_'+stK]:aportK;
       const isEd=stVal!=='none';
       filasGastos+=`<div class="ar ${rowCls(stVal)}" onclick="ciclar('${ds}','${stK}')"><div class="ai ${icoCls(stVal)}">${ico(stVal)}</div><div class="an"><div class="nm">${label}</div><div class="ht" style="font-size:9px">${hint(stVal)}</div></div>${isEd?`<input class="ext-inp" type="number" value="${montoEd}" onclick="event.stopPropagation()" onchange="setMontoReal('${ds}','${stK}',this.value)" style="width:80px;margin-right:4px;">`:`<div class="aa" style="color:${col(stVal)}">${fmt(aportK)}</div>`}</div>`;
+    }
+    // Martha — weekly rows for this quincena period
+    if(gastoActivo('lim',mesDsKey)){
+      const dsD=new Date(ds+'T12:00:00');
+      const idxQ=PAGOS_DATES.indexOf(ds);
+      const nextQ=idxQ>=0&&idxQ<PAGOS_DATES.length-1?PAGOS_DATES[idxQ+1]:null;
+      const dFin=nextQ?new Date(nextQ+'T12:00:00'):new Date(dsD.getTime()+14*86400000);
+      // Generate weekly dates within this quincena period
+      let wDate=new Date(dsD);
+      let wIdx=0;
+      while(wDate<dFin){
+        const wStr=wDate.toISOString().split('T')[0];
+        const wKey=`martha_${wStr}`;
+        const wSt=ap[wKey]||'none';
+        const wLabel=`Martha — ${DIA[wDate.getDay()]} ${wDate.getDate()} ${MES[wDate.getMonth()].slice(0,3)}`;
+        filasGastos+=`<div class="ar ${rowCls(wSt)}" onclick="ciclar('${ds}','${wKey}')"><div class="ai ${icoCls(wSt)}">${ico(wSt)}</div><div class="an"><div class="nm">${wLabel}</div><div class="ht" style="font-size:9px">${hint(wSt)}</div></div><div class="aa" style="color:${col(wSt)}">$850</div></div>`;
+        wDate=new Date(wDate.getTime()+7*86400000);
+        wIdx++;
+        if(wIdx>5)break;
+      }
     }
     // Gastos extra asignados a esta quincena
     const gastosDeEstaQ=(gastosV[mesDsKey]||[]).filter(g=>g.quincena===ds);
@@ -885,31 +984,7 @@ function renderPagos(){
       const gIcoCls=gSt==='guardado'?'g':gSt==='pagado'?'p':'';
       filasGastos+=`<div class="ar ${rowCls(gSt)}" onclick="ciclarGastoQ('${mesDsKey}',${gIdx})"><div class="ai ${icoCls(gSt)}">${ico(gSt)}</div><div class="an"><div class="nm" style="color:${gSt==='none'?'var(--pink)':col(gSt)}">${gx.desc||'Gasto extra'}</div><div class="ht">Gasto variable${gSt==='pagado'?' — pagado':gSt==='guardado'?' — apartado':''}</div></div><div class="aa" style="color:${gSt==='none'?'var(--pink)':col(gSt)}">${fmt(gx.monto)}</div></div>`;
     }
-    // Proyección próximas semanas (Martha semanal + resumen de lo pendiente)
-    const SEMANA_MS=7*24*3600*1000;
-    let proyHtml='';
-    {
-      // Martha weekly projection — next 4 weeks from this quincena date
-      const marthaVal=+document.getElementById('cfg-lim')?.value||0;
-      const limActivo=gastoActivo('lim',mesDsKey);
-      if(marthaVal&&limActivo){
-        const dsD=new Date(ds+'T12:00:00');
-        const semanas=[];
-        for(let i=1;i<=4;i++){
-          const sw=new Date(dsD.getTime()+i*SEMANA_MS);
-          const swStr=sw.toISOString().split('T')[0];
-          semanas.push({fecha:`${DIA[sw.getDay()]} ${sw.getDate()} ${MES[sw.getMonth()].slice(0,3)}`,monto:850,str:swStr});
-        }
-        proyHtml+=`<div style="font-size:10px;color:var(--muted);padding:8px 14px 4px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border-top:1px solid var(--border);">📅 Próximas semanas</div>`;
-        proyHtml+=`<div style="padding:4px 14px 8px;">`;
-        semanas.forEach(s=>{
-          proyHtml+=`<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);"><span style="color:var(--muted)">${s.fecha} — Martha</span><span style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--pink)">$850</span></div>`;
-        });
-        proyHtml+=`<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;"><span style="color:var(--muted)">Total 4 semanas Martha</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--pink)">${fmt(850*4)}</span></div>`;
-        proyHtml+=`</div>`;
-      }
-    }
-    // Arrastres de quincenas anteriores que deben cubrirse en esta quincena
+        let proyHtml='';    // Arrastres de quincenas anteriores que deben cubrirse en esta quincena
     const arrastres=calcArrastres(ds);
     let filasArrastres='';
     let totalArrastre=0;
