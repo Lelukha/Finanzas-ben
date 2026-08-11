@@ -323,7 +323,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     <div class="ir">
       <div><div class="il">TC base (USD→MXN)</div><div class="is">Editable por quincena también</div></div>
-      <input class="iv" type="number" id="cfg-tc" value="17.80" step="0.1" oninput="save();recalc()">
+      <input class="iv" type="number" id="cfg-tc" value="17.20" step="0.1" oninput="save();recalc()">
     </div>
     <div class="ir">
       <div><div class="il">Bono agosto 2026 (USD)</div><div class="is">Se aplica al préstamo</div></div>
@@ -452,14 +452,14 @@ const MESES_LIST=getMeses();
 function getAnios(){const s=new Set();for(const{y}of MESES_LIST)s.add(y);return[...s];}
 function pagosDelMes(k){return PAGOS_DATES.filter(d=>d.startsWith(k));}
 function hoy(){return new Date().toISOString().split('T')[0];}
-function esBono(d){return d>='2026-08-01'&&d<='2026-08-31';}
+function esBono(d){return d>='2026-09-01'&&d<='2026-09-30';}
 function diasHasta(d){const h=new Date(hoy());h.setHours(0,0,0,0);const t=new Date(d);t.setHours(0,0,0,0);return Math.round((t-h)/86400000);}
 function fmtDate(d){const t=new Date(d+'T12:00:00');return `${DIA[t.getDay()]} ${t.getDate()} ${MES[t.getMonth()].slice(0,3)} ${t.getFullYear()}`;}
 function fmt(n){if(isNaN(n)||n===null)return'-';const neg=n<0;return(neg?'-':'')+'$'+Math.round(Math.abs(n)).toLocaleString('es-MX');}
 function nom(k){return document.getElementById('nom-'+k)?.value||k;}
 function cfg(){
   const anual=+document.getElementById('cfg-anual').value||87000;
-  const tcBase=+document.getElementById('cfg-tc').value||17.80;
+  const tcBase=+document.getElementById('cfg-tc').value||17.20;
   const bono=+document.getElementById('cfg-bono').value||5000;
   const porPago=(anual/26)*tcBase;
   const bonoMXN=bono*tcBase;
@@ -492,14 +492,18 @@ function montoReal(dateStr){
   const tc=tcReales[dateStr]||c.tcBase;const base=(anual/26)*tc;
   const bonoBase=esBono(dateStr)?c.bono*tc:0;
   const extras=(bonosExtra[dateStr]||[]).reduce((a,b)=>a+(+b.monto||0),0);
-  return{base,bonoBase,extras,total:base+bonoBase+extras,tc};
+  const calculated=base+bonoBase+extras;
+  // Use actual deposit if manually entered
+  const depReal=cobrados&&cobrados['dep_'+dateStr]?+cobrados['dep_'+dateStr]:null;
+  const total=depReal||calculated;
+  return{base,bonoBase,extras,total,tc};
 }
 function buildLoan(){
   // Loan: $500,000 at 2.5% monthly on outstanding balance
   // Months 1-3 (RESTRICT): pay interest only ($12,500), NO capital reduction
   // Month 4+: pay $17,500 minimum ($12,500 interest + $5,000 capital)
   // Extra capital payments on top, optional
-  const BONOS={4:80000,16:80000};let saldo=500000;const rows=[];
+  const BONOS={5:80000,17:80000};let saldo=500000;const rows=[];
   const capMinimo=5000; // minimum capital per month after restriction
   for(let i=0;i<45;i++){
     if(saldo<=0)break;
@@ -521,7 +525,7 @@ function buildLoan(){
   return rows;
 }
 function calcProjection(){
-  const c=cfg();const BONOS={4:80000,16:80000};const SM=4,SY=2026;
+  const c=cfg();const BONOS={5:80000,17:80000};const SM=4,SY=2026;
   const labels=[],dataA=[],dataB=[];let sA=500000,sB=500000;
   for(let i=0;i<36;i++){
     if(sA<=0&&sB<=0)break;
@@ -761,6 +765,16 @@ function desglosesPago(dateStr){
     if(gSt==='guardado')totalGuardado+=gx.monto||0;
     else if(gSt==='pagado')totalGastado+=gx.monto||0;
   }
+  // Add arrastre guardado/pagado in this quincena
+  for(const key of Object.keys(ap)){
+    if(key.startsWith('arrastre_')){
+      const arSt=ap[key];
+      const montoKey='monto_'+key;
+      const arMonto=ap[montoKey]||0;
+      if(arSt==='guardado')totalGuardado+=arMonto;
+      else if(arSt==='pagado')totalGastado+=arMonto;
+    }
+  }
   const libre=mr.total-totalGuardado-totalGastado;
   const nP=pagosDelMes(mesDsKey).length;
   return{mr,montos,libre,nP,totalComprometido,totalGuardado,totalGastado};
@@ -827,6 +841,12 @@ function showToast(){
   t.textContent='✓ Guardado';t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',1400);
 }
 function setTC(ds,v){tcReales[ds]=+v||0;save();renderPagos();renderAnual();}
+function setDeposito(ds,v){
+  if(!cobrados)cobrados={};
+  if(v&&+v>0){cobrados['dep_'+ds]=+v;}
+  else{delete cobrados['dep_'+ds];}
+  save();renderPagos();
+}
 function addBono(ds){if(!bonosExtra[ds])bonosExtra[ds]=[];bonosExtra[ds].push({desc:'',monto:0});save();renderPagos();}
 function updBono(ds,i,f,v){bonosExtra[ds][i][f]=f==='monto'?+v:v;save();renderPagos();}
 function delBono(ds,i){bonosExtra[ds].splice(i,1);save();renderPagos();}
@@ -994,15 +1014,39 @@ function renderPagos(){
       filasArrastres+=`<div style="font-size:10px;color:var(--orange);padding:8px 14px 4px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border-top:1px solid rgba(243,156,18,.3);background:rgba(243,156,18,.05);">⚠️ Arrastre pendiente</div>`;
       for(const ar of arrastres){
         totalArrastre+=ar.monto;
-        filasArrastres+=`<div class="ar sg" style="background:rgba(243,156,18,.07)"><div class="ai g" style="font-size:11px;">⚠️</div><div class="an"><div class="nm" style="color:var(--orange)">${ar.label}</div><div class="ht" style="color:rgba(243,156,18,.6)">No pagado en ${fmtDate(ar.desde)} — cubre aquí</div></div><div style="display:flex;align-items:center;gap:8px;"><span class="aa" style="color:var(--orange)">${fmt(ar.monto)}</span><button onclick="eliminarArrastre('${ds}','${ar.key}','${ar.desde}')" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:rgba(255,255,255,0.4);font-size:11px;padding:3px 8px;cursor:pointer;">✕</button></div></div>`;
+        const arKey='arrastre_'+ar.key+'_'+ar.desde;
+        const arSt=ap[arKey]||'none';
+        filasArrastres+=`<div class="ar ${rowCls(arSt)}" style="${arSt==='none'?'background:rgba(243,156,18,.07)':''}"><div class="ai ${arSt==='none'?'g':icoCls(arSt)}" onclick="ciclarArrastre('${ds}','${ar.key}','${ar.desde}',${ar.monto})" style="cursor:pointer;">${arSt==='none'?'⚠️':ico(arSt)}</div><div class="an"><div class="nm" style="color:${arSt==='none'?'var(--orange)':col(arSt)}">${ar.label}</div><div class="ht" style="color:rgba(243,156,18,.6)">No pagado en ${fmtDate(ar.desde)} — cubre aquí</div></div><div style="display:flex;align-items:center;gap:8px;"><span class="aa" style="color:${arSt==='none'?'var(--orange)':col(arSt)}">${fmt(ar.monto)}</span>${arSt==='none'?`<button onclick="eliminarArrastre('${ds}','${ar.key}','${ar.desde}')" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:rgba(255,255,255,0.4);font-size:11px;padding:3px 8px;cursor:pointer;">✕</button>`:''}</div></div>`;
       }
       filasArrastres+=`<div class="pr" style="color:var(--orange);background:rgba(243,156,18,.08)"><span>⚠️ Total arrastre</span><span class="amt">${fmt(totalArrastre)}</span></div>`;
     }
-    html+=`<div class="pc"><div class="ph ${cobrado?'cobrado':''}"><div><div class="pf2">${fmtDate(ds)} ${bonoTag}${tresTag}</div><div style="font-size:10px;opacity:.6;">${cobrado?'✓ Cobrado':isPast?'Sin marcar':'Próximo'}</div></div><div style="text-align:right"><div class="pm ${cobrado?'cobrado':''}">${fmt(mr.total)}</div><button class="cbtn ${cobrado?'undo':''}" onclick="toggleCobro('${ds}')">${cobrado?'Desmarcar':'Cobrado ✓'}</button></div></div><div class="pb2"><div class="tc-row"><span class="tc-lbl">TC real este día ${tcDelta}</span><input class="tc-inp" type="number" step="0.1" value="${tcActual.toFixed(2)}" onchange="setTC('${ds}',this.value)" placeholder="${c.tcBase}"></div>${bonos.map((b,i)=>`<div class="bonus-row"><input class="bonus-d" value="${b.desc}" placeholder="Bono / performance / ventas..." oninput="updBono('${ds}',${i},'desc',this.value)"><input class="bonus-m" type="number" value="${b.monto}" oninput="updBono('${ds}',${i},'monto',this.value)" placeholder="0"><button class="bonus-del" onclick="delBono('${ds}',${i})">✕</button></div>`).join('')}<div class="add-bonus" onclick="addBono('${ds}')">+ Agregar bono / ingreso extra</div>${pagosQ.length?`<div class="pagos-dia">${pagosQ.map(p=>`<span class="pago-chip ${p.urgente?'urgente':''}">${p.nom}</span>`).join('')}</div>`:''}${sorActivo?`<div class="ar ${rowCls(stSor)}" onclick="ciclar('${ds}','sorento')"><div class="ai ${icoCls(stSor)}">${ico(stSor)}</div><div class="an"><div class="nm">${nom('sor')}</div><div class="ht">${hint(stSor)}</div></div>${stSor!=='none'?`<input class="ext-inp" type="number" value="${ap['monto_sorento']!==undefined?ap['monto_sorento']:dg.montos.sor}" onclick="event.stopPropagation()" onchange="setMontoReal('${ds}','sorento',this.value)" style="width:80px;margin-right:4px;">`:`<span class="aa" style="color:${col(stSor)}">${fmt(dg.montos.sor)}</span>`}</div>`:''}${preActivo?`<div class="ar ${rowCls(stPre)}" onclick="ciclar('${ds}','prestamo')"><div class="ai ${icoCls(stPre)}">${ico(stPre)}</div><div class="an"><div class="nm">${nom('pre')}</div><div class="ht" style="font-size:9px">${hint(stPre)}</div></div>${stPre!=='none'?`<input class="ext-inp" type="number" value="${ap['monto_prestamo']!==undefined?ap['monto_prestamo']:dg.montos.pre}" onclick="event.stopPropagation()" onchange="setMontoReal('${ds}','prestamo',this.value)" style="width:80px;margin-right:4px;">`:`<span class="aa" style="color:${col(stPre)}">${fmt(dg.montos.pre)}</span>`}</div><div class="ar ${rowCls(stPreCap)}" onclick="ciclar('${ds}','prestamo_capital')"><div class="ai ${icoCls(stPreCap)}">${ico(stPreCap)}</div><div class="an"><div class="nm">Abono extra a capital (opcional)</div><div class="ht" style="color:var(--teal);font-size:9px">Aparta para adelantar el préstamo</div></div>${stPreCap!=='none'?`<input class="ext-inp" type="number" value="${ap['monto_prestamo_capital']!==undefined?ap['monto_prestamo_capital']:dg.montos.preExt}" onclick="event.stopPropagation()" onchange="setMontoReal('${ds}','prestamo_capital',this.value)" style="width:80px;margin-right:4px;">`:`<span class="aa" style="color:${col(stPreCap)}">${fmt(dg.montos.preExt)}</span>`}</div>`:''}${filasGastos}${filasArrastres}<div style="border-top:1px solid rgba(255,255,255,0.06);">${totalArrastre>0?`<div class="pr" style="color:var(--orange);"><span>⚠️ Arrastre pendiente</span><span class="amt" style="color:var(--orange);">-${fmt(totalArrastre)}</span></div>`:''}<div class="pr" style="color:#FB923C;"><span>💾 Guardado (en tu cuenta)</span><span class="amt" style="color:#FB923C;">${fmt(dg.totalGuardado)}</span></div><div class="pr" style="color:var(--green);"><span>✅ Gastado (pagado)</span><span class="amt" style="color:var(--green);">${fmt(dg.totalGastado)}</span></div><div class="pr libre"><span>💚 Libre (sin comprometer)</span><span class="amt" style="color:${(dg.libre-totalArrastre)<0?'var(--red)':'var(--teal)'}">${fmt(dg.libre-totalArrastre)}</span></div></div>${mr.bonoBase>0?`<div class="pr" style="color:var(--orange)"><span>🎯 Bono salarial</span><span class="amt">${fmt(mr.bonoBase)}</span></div>`:''} ${totalBonos>0?`<div class="pr" style="color:var(--green)"><span>💸 Bonos / extras</span><span class="amt">${fmt(totalBonos)}</span></div>`:''}${proyHtml}<div class="nota-row"><input class="nota-inp" placeholder="📝 Nota de esta quincena..." value="${nota}" onchange="setNota('${ds}',this.value)"></div></div></div>`;
+    html+=`<div class="pc"><div class="ph ${cobrado?'cobrado':''}"><div><div class="pf2">${fmtDate(ds)} ${bonoTag}${tresTag}</div><div style="font-size:10px;opacity:.6;">${cobrado?'✓ Cobrado':isPast?'Sin marcar':'Próximo'}</div></div><div style="text-align:right"><div class="pm ${cobrado?'cobrado':''}">${fmt(mr.total)}</div><button class="cbtn ${cobrado?'undo':''}" onclick="toggleCobro('${ds}')">${cobrado?'Desmarcar':'Cobrado ✓'}</button></div></div><div class="pb2"><div class="tc-row"><span class="tc-lbl">TC real este día ${tcDelta}</span><input class="tc-inp" type="number" step="0.1" value="${tcActual.toFixed(2)}" onchange="setTC('${ds}',this.value)" placeholder="${c.tcBase}"></div><div class="tc-row"><span class="tc-lbl">Depósito real (MXN)</span><input class="tc-inp" type="number" value="${cobrados['dep_'+ds]||''}" placeholder="${fmt(mr.total)}" onchange="setDeposito('${ds}',this.value)"></div>${bonos.map((b,i)=>`<div class="bonus-row"><input class="bonus-d" value="${b.desc}" placeholder="Bono / performance / ventas..." oninput="updBono('${ds}',${i},'desc',this.value)"><input class="bonus-m" type="number" value="${b.monto}" oninput="updBono('${ds}',${i},'monto',this.value)" placeholder="0"><button class="bonus-del" onclick="delBono('${ds}',${i})">✕</button></div>`).join('')}<div class="add-bonus" onclick="addBono('${ds}')">+ Agregar bono / ingreso extra</div>${pagosQ.length?`<div class="pagos-dia">${pagosQ.map(p=>`<span class="pago-chip ${p.urgente?'urgente':''}">${p.nom}</span>`).join('')}</div>`:''}${sorActivo?`<div class="ar ${rowCls(stSor)}" onclick="ciclar('${ds}','sorento')"><div class="ai ${icoCls(stSor)}">${ico(stSor)}</div><div class="an"><div class="nm">${nom('sor')}</div><div class="ht">${hint(stSor)}</div></div>${stSor!=='none'?`<input class="ext-inp" type="number" value="${ap['monto_sorento']!==undefined?ap['monto_sorento']:dg.montos.sor}" onclick="event.stopPropagation()" onchange="setMontoReal('${ds}','sorento',this.value)" style="width:80px;margin-right:4px;">`:`<span class="aa" style="color:${col(stSor)}">${fmt(dg.montos.sor)}</span>`}</div>`:''}${preActivo?`<div class="ar ${rowCls(stPre)}" onclick="ciclar('${ds}','prestamo')"><div class="ai ${icoCls(stPre)}">${ico(stPre)}</div><div class="an"><div class="nm">${nom('pre')}</div><div class="ht" style="font-size:9px">${hint(stPre)}</div></div>${stPre!=='none'?`<input class="ext-inp" type="number" value="${ap['monto_prestamo']!==undefined?ap['monto_prestamo']:dg.montos.pre}" onclick="event.stopPropagation()" onchange="setMontoReal('${ds}','prestamo',this.value)" style="width:80px;margin-right:4px;">`:`<span class="aa" style="color:${col(stPre)}">${fmt(dg.montos.pre)}</span>`}</div><div class="ar ${rowCls(stPreCap)}" onclick="ciclar('${ds}','prestamo_capital')"><div class="ai ${icoCls(stPreCap)}">${ico(stPreCap)}</div><div class="an"><div class="nm">Abono extra a capital (opcional)</div><div class="ht" style="color:var(--teal);font-size:9px">Aparta para adelantar el préstamo</div></div>${stPreCap!=='none'?`<input class="ext-inp" type="number" value="${ap['monto_prestamo_capital']!==undefined?ap['monto_prestamo_capital']:dg.montos.preExt}" onclick="event.stopPropagation()" onchange="setMontoReal('${ds}','prestamo_capital',this.value)" style="width:80px;margin-right:4px;">`:`<span class="aa" style="color:${col(stPreCap)}">${fmt(dg.montos.preExt)}</span>`}</div>`:''}${filasGastos}${filasArrastres}<div style="border-top:1px solid rgba(255,255,255,0.06);">${totalArrastre>0?`<div class="pr" style="color:var(--orange);"><span>⚠️ Arrastre pendiente</span><span class="amt" style="color:var(--orange);">-${fmt(totalArrastre)}</span></div>`:''}<div class="pr" style="color:#FB923C;"><span>💾 Guardado (en tu cuenta)</span><span class="amt" style="color:#FB923C;">${fmt(dg.totalGuardado)}</span></div><div class="pr" style="color:var(--green);"><span>✅ Gastado (pagado)</span><span class="amt" style="color:var(--green);">${fmt(dg.totalGastado)}</span></div><div class="pr libre"><span>💚 Libre (sin comprometer)</span><span class="amt" style="color:${(dg.libre-totalArrastre)<0?'var(--red)':'var(--teal)'}">${fmt(dg.libre-totalArrastre)}</span></div></div>${mr.bonoBase>0?`<div class="pr" style="color:var(--orange)"><span>🎯 Bono salarial</span><span class="amt">${fmt(mr.bonoBase)}</span></div>`:''} ${totalBonos>0?`<div class="pr" style="color:var(--green)"><span>💸 Bonos / extras</span><span class="amt">${fmt(totalBonos)}</span></div>`:''}${proyHtml}<div class="nota-row"><input class="nota-inp" placeholder="📝 Nota de esta quincena..." value="${nota}" onchange="setNota('${ds}',this.value)"></div></div></div>`;
   }
   document.getElementById('pagos-lista').innerHTML=html;
 }
 function toggleCobro(ds){cobrados[ds]=!cobrados[ds];save();renderPagos();}
+function ciclarArrastre(ds,stKey,desde,monto){
+  if(!aportaciones[ds])aportaciones[ds]={};
+  const arKey='arrastre_'+stKey+'_'+desde;
+  const cur=aportaciones[ds][arKey]||'none';
+  const next=cur==='none'?'guardado':cur==='guardado'?'pagado':'none';
+  aportaciones[ds][arKey]=next;
+  // Store monto for libre calculation
+  aportaciones[ds]['monto_arrastre_'+stKey+'_'+desde]=monto;
+  // If pagado, also mark original quincena to stop future arrastres
+  if(next==='pagado'){
+    if(!aportaciones[desde])aportaciones[desde]={};
+    aportaciones[desde][stKey]='pagado';
+    aportaciones[desde]['monto_'+stKey]=monto;
+  } else if(next==='none'){
+    // Reset original quincena mark
+    if(aportaciones[desde]&&aportaciones[desde][stKey]==='pagado'){
+      aportaciones[desde][stKey]='none';
+      delete aportaciones[desde]['monto_'+stKey];
+    }
+  }
+  save();renderPagos();
+}
 function eliminarArrastre(ds,stKey,desde){
   // Mark the original quincena's item as 'pagado' so it doesn't generate arrastre
   if(!aportaciones[desde])aportaciones[desde]={};
