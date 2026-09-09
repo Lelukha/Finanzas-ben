@@ -693,9 +693,11 @@ function montoReal(dateStr){
   const extras=(bonosExtra[dateStr]||[]).reduce((a,b)=>a+(+b.monto||0),0);
   const calculated=base+bonoBase+extras;
   // Use actual deposit if manually entered
-  const depReal=cobrados&&cobrados['dep_'+dateStr]?+cobrados['dep_'+dateStr]:null;
-  const total=depReal||calculated;
-  return{base,bonoBase,extras,total,tc};
+  const depKey='dep_'+dateStr;
+  const isReal=!!(cobrados&&Object.prototype.hasOwnProperty.call(cobrados,depKey));
+  const depReal=isReal?+cobrados[depKey]:null;
+  const total=isReal?depReal:calculated;
+  return{base,bonoBase,extras,total,tc,isReal};
 }
 function buildLoan(){
   // Loan: $500,000 at 2.5% monthly on outstanding balance
@@ -1124,7 +1126,7 @@ function setDeposito(ds,v){
   if(!cobrados)cobrados={};
   if(v&&+v>0){cobrados['dep_'+ds]=+v;}
   else{delete cobrados['dep_'+ds];}
-  save();renderPagos();
+  save();recalc();
 }
 function addBono(ds){if(!bonosExtra[ds])bonosExtra[ds]=[];bonosExtra[ds].push({desc:'',monto:0});save();renderPagos();}
 function updBono(ds,i,f,v){bonosExtra[ds][i][f]=f==='monto'?+v:v;save();renderPagos();}
